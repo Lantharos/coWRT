@@ -21,14 +21,11 @@ fi
 exec qemu-system-x86_64 \
 	-enable-kvm -cpu host -smp 2 -m 512 \
 	-drive "file=$image,format=raw,if=virtio" \
-	-netdev socket,id=lan,mcast=230.0.0.1:10101 \
-	-device virtio-net-pci,netdev=lan \
+	-device virtio-net-pci,mac=52:54:00:12:34:56 \
 	-netdev "user,id=wan,hostfwd=tcp:127.0.0.1:10022-:22,hostfwd=tcp:127.0.0.1:10080-:80" \
-	-device virtio-net-pci,netdev=wan \
-	-netdev socket,id=port2,mcast=230.0.0.1:10102 \
-	-device virtio-net-pci,netdev=port2 \
-	-netdev socket,id=port3,mcast=230.0.0.1:10103 \
-	-device virtio-net-pci,netdev=port3 \
+	-device virtio-net-pci,netdev=wan,mac=52:54:00:12:34:57 \
+	-device virtio-net-pci,mac=52:54:00:12:34:58 \
+	-device virtio-net-pci,mac=52:54:00:12:34:59 \
 	-display none \
 	-serial "unix:$dir/console.sock,server,nowait" \
 	-pidfile "$dir/qemu.pid" \

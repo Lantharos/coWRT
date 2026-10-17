@@ -7,6 +7,7 @@ cat >/tmp/client-dhcp.sh <<-'EOF'
 	bound | renew)
 		ip addr flush dev "$interface"
 		ip addr add "$ip/$subnet" dev "$interface"
+		[ -n "$router" ] && ip route replace default via "${router%% *}" dev "$interface"
 		;;
 	deconfig)
 		ip addr flush dev "$interface"
@@ -18,6 +19,8 @@ chmod +x /tmp/client-dhcp.sh
 join() {
 	phy=$1 name=$2 freq=$3
 	ip netns add "$name" 2>/dev/null || return 0
+	mkdir -p "/etc/netns/$name"
+	echo "nameserver 10.0.0.1" >"/etc/netns/$name/resolv.conf"
 	iw phy "$phy" set netns name "$name"
 	ip netns exec "$name" ip link set lo up
 	dev=wlan0

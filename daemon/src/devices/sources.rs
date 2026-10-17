@@ -25,30 +25,6 @@ pub async fn leases() -> Vec<Lease> {
 		.collect()
 }
 
-pub struct Neighbor {
-	pub ip: String,
-	pub mac: String,
-	pub device: String,
-}
-
-const ARP_COMPLETE: u32 = 0x2;
-
-pub async fn neighbors() -> Vec<Neighbor> {
-	let raw = fs::read_to_string("/proc/net/arp").await.unwrap_or_default();
-	raw.lines()
-		.skip(1)
-		.filter_map(|line| {
-			let fields: Vec<&str> = line.split_whitespace().collect();
-			let flags = u32::from_str_radix(fields.get(2)?.trim_start_matches("0x"), 16).ok()?;
-			(flags & ARP_COMPLETE != 0).then(|| Neighbor {
-				ip: fields[0].to_owned(),
-				mac: fields.get(3).copied().unwrap_or_default().to_ascii_lowercase(),
-				device: fields.get(5).copied().unwrap_or_default().to_owned(),
-			})
-		})
-		.collect()
-}
-
 pub async fn local_macs() -> Vec<String> {
 	let mut macs = Vec::new();
 	let Ok(mut entries) = fs::read_dir("/sys/class/net").await else {

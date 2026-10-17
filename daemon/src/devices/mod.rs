@@ -1,12 +1,14 @@
 pub mod sources;
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::net::IpAddr;
 
 use serde::Serialize;
 
 use crate::config::uci;
+use crate::monitor::DeviceUsage;
 use crate::networks::Layout;
+use crate::policy::Controls;
 use crate::ubus::{self, Ubus};
 
 #[derive(Serialize)]
@@ -18,12 +20,15 @@ pub struct Device {
 	pub hostname: Option<String>,
 	pub icon: Option<String>,
 	pub ipv4: Option<String>,
+	pub ipv6: Vec<String>,
 	pub online: bool,
 	pub connection: Connection,
 	pub reserved_ip: Option<String>,
 	pub lease_expires: Option<u64>,
 	pub is_you: bool,
 	pub network: Option<String>,
+	pub controls: Controls,
+	pub usage: DeviceUsage,
 }
 
 #[derive(Serialize)]
@@ -64,12 +69,15 @@ impl Device {
 			hostname: None,
 			icon: None,
 			ipv4: None,
+			ipv6: Vec::new(),
 			online: false,
 			connection: Connection::Offline,
 			reserved_ip: None,
 			lease_expires: None,
 			is_you: false,
 			network: None,
+			controls: Controls::default(),
+			usage: DeviceUsage::default(),
 		}
 	}
 }
@@ -89,10 +97,14 @@ impl Found {
 	}
 }
 
-pub async fn inventory(ubus: &Ubus, requester: Option<IpAddr>) -> Result<Vec<Device>, ubus::Error> {
+pub async fn inventory(
+	ubus: &Ubus,
+	usage: &HashMap<String, DeviceUsage>,
+	requester: Option<IpAddr>,
+) -> Result<Vec<Device>, ubus::Error> {
 	let (leases, neighbors, wifi, local, customs, hosts, wan) = tokio::join!(
 		sources::leases(),
-		sources::neighbors(),
+		tokio::task::spawn_blocking(crate::netlink::neighbors::list),
 		sources::wifi_clients(ubus),
 		sources::local_macs(),
 		uci::sections_of(ubus, "cowrt", "device"),
@@ -126,11 +138,20 @@ pub async fn inventory(ubus: &Ubus, requester: Option<IpAddr>) -> Result<Vec<Dev
 		if let Some(device) = custom.get("mac").and_then(|mac| found.entry(mac)) {
 			device.custom_name = custom.get("name").map(str::to_owned);
 			device.icon = custom.get("icon").map(str::to_owned);
+			device.controls = Controls::from_section(&custom);
 		}
 	}
+	let neighbors = neighbors.ok().and_then(Result::ok).unwrap_or_default();
 	for neighbor in neighbors.into_iter().filter(|n| Some(&n.device) != wan_device.as_ref()) {
-		if let Some(device) = found.entry(&neighbor.mac) {
-			device.ipv4.get_or_insert(neighbor.ip);
+		let Some(device) = found.entry(&neighbor.mac) else { continue };
+		match neighbor.ip {
+			IpAddr::V4(ip) => {
+				device.ipv4.get_or_insert(ip.to_string());
+			}
+			IpAddr::V6(ip) if !ip.is_unicast_link_local() => device.ipv6.push(ip.to_string()),
+			IpAddr::V6(_) => {}
+		}
+		if neighbor.active {
 			device.online = true;
 			device.connection = Connection::Wired;
 		}
@@ -156,6 +177,7 @@ pub async fn inventory(ubus: &Ubus, requester: Option<IpAddr>) -> Result<Vec<Dev
 		.into_values()
 		.map(|mut device| {
 			device.is_you = requester.is_some() && device.ipv4 == requester;
+			device.usage = usage.get(&device.mac).copied().unwrap_or_default();
 			device.network = device
 				.ipv4
 				.as_deref()

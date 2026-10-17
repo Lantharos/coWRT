@@ -3,7 +3,10 @@ mod config;
 mod devices;
 mod http;
 mod monitor;
+mod netlink;
 mod networks;
+mod policy;
+mod qos;
 mod secret;
 mod state;
 mod ubus;
@@ -53,11 +56,12 @@ async fn main() {
 	eprintln!("cowrtd listening on {}", args.listen);
 	axum::serve(
 		listener,
-		http::router(state, &args.www).into_make_service_with_connect_info::<SocketAddr>(),
+		http::router(state.clone(), &args.www).into_make_service_with_connect_info::<SocketAddr>(),
 	)
 	.with_graceful_shutdown(shutdown())
 	.await
 	.expect("server error");
+	state.monitor.save().await;
 }
 
 async fn shutdown() {

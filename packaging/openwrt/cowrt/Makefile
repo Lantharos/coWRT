@@ -13,7 +13,7 @@ define Package/cowrt
   CATEGORY:=Administration
   TITLE:=Modern web interface for OpenWrt
   URL:=https://github.com/Lantharos/coWRT
-  DEPENDS:=+rpcd +rpcd-mod-iwinfo
+  DEPENDS:=+rpcd +rpcd-mod-iwinfo +ip +tc-full +kmod-nf-conntrack-netlink +kmod-sched-cake +kmod-sched-ctinfo +kmod-ifb
 endef
 
 define Package/cowrt/description

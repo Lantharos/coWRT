@@ -3,13 +3,14 @@
 	import { Ban, Unplug } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import type { Device } from '#lib/api/types.js';
-	import { bandLabel, linkRate } from '#lib/format.js';
+	import { bandLabel, bits, bytes, joined, linkRate } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Facts from '#lib/components/ui/Facts.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
 	import TextField from '#lib/components/ui/TextField.svelte';
 	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import DeviceControls from './DeviceControls.svelte';
 	import { kinds, kindOf, type Kind } from './kinds';
 
 	type Props = { device: Device | null; onclose: () => void; onchange: () => void };
@@ -101,6 +102,12 @@
 
 	{#if device}
 		<div class="flex flex-col gap-8">
+			<div class="grid grid-cols-3 gap-[3px] overflow-hidden rounded-[16px]">
+				{@render figure('Download', joined(bits(device.usage.down)))}
+				{@render figure('Upload', joined(bits(device.usage.up)))}
+				{@render figure('Today', joined(bytes(device.usage.todayDown + device.usage.todayUp)))}
+			</div>
+
 			{#if connection?.kind === 'wifi'}
 				<div class="grid grid-cols-2 gap-2">
 					<Button onclick={() => disconnect(0)} busy={saving === 'disconnect'}>
@@ -112,9 +119,12 @@
 				</div>
 			{/if}
 
+			<DeviceControls {device} {onchange} />
+
 			<Facts
 				facts={[
 					{ label: 'IP address', value: device.ipv4, copy: true },
+					...(device.ipv6.length ? [{ label: 'IPv6', value: device.ipv6[0], copy: true }] : []),
 					{ label: 'MAC address', value: device.mac.toUpperCase(), copy: true },
 					{ label: 'Hostname', value: device.hostname },
 					...(connection?.kind === 'wifi'
@@ -181,3 +191,10 @@
 		</div>
 	{/if}
 </Sheet>
+
+{#snippet figure(label: string, value: string)}
+	<div class="flex flex-col gap-0.5 bg-raised px-4 py-3">
+		<span class="font-display text-lg">{value}</span>
+		<span class="text-[12px] text-muted">{label}</span>
+	</div>
+{/snippet}

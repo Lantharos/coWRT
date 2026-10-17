@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Cable } from '@lucide/svelte';
 	import type { Device, Network } from '#lib/api/types.js';
-	import { bandLabel } from '#lib/format.js';
+	import { bandLabel, bits, joined } from '#lib/format.js';
 	import { networkColors } from '#lib/components/networks/colors.js';
 	import { kinds, kindOf } from './kinds';
 	import SignalBars from './SignalBars.svelte';
@@ -11,6 +11,7 @@
 
 	const Icon = $derived(kinds[kindOf(device)].icon);
 	const connection = $derived(device.connection);
+	const busy = $derived(device.usage.down + device.usage.up > 50_000);
 </script>
 
 <button
@@ -39,6 +40,13 @@
 			{device.ipv4 ?? 'No address'}{#if device.reservedIp}&nbsp;· reserved{/if}
 		</span>
 	</span>
+	{#if device.controls.blocked}
+		<span class="shrink-0 text-[13px] text-danger">Internet paused</span>
+	{:else if busy}
+		<span class="shrink-0 text-[13px] text-fg tabular-nums">
+			↓ {joined(bits(device.usage.down))}
+		</span>
+	{/if}
 	<span class="hidden shrink-0 items-center gap-2 text-[13px] text-muted sm:flex">
 		{#if connection.kind === 'wifi'}
 			<span class="truncate">{connection.ssid} · {bandLabel[connection.band]}</span>

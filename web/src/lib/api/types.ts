@@ -75,6 +75,34 @@ export interface Device {
 	leaseExpires: number | null;
 	isYou: boolean;
 	network: string | null;
+	ipv6: string[];
+	controls: DeviceControls;
+	usage: DeviceUsage;
+}
+
+export type Day = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export interface Schedule {
+	days: Day[];
+	from: string;
+	to: string;
+}
+
+export type Priority = 'low' | 'normal' | 'high';
+
+export interface DeviceControls {
+	blocked: boolean;
+	schedules: Schedule[];
+	limitDown: number | null;
+	limitUp: number | null;
+	priority: Priority;
+}
+
+export interface DeviceUsage {
+	down: number;
+	up: number;
+	todayDown: number;
+	todayUp: number;
 }
 
 export type Security = 'wpa3' | 'wpa2-wpa3' | 'wpa2' | 'enhanced-open' | 'open';

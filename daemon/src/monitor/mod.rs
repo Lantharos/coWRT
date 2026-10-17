@@ -1,8 +1,12 @@
 mod connectivity;
 mod history;
+mod ledger;
 mod proc;
+mod traffic;
 mod wan;
+mod watcher;
 
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -11,12 +15,15 @@ use tokio::sync::watch;
 
 pub use history::History;
 use history::Recorder;
+use ledger::Ledger;
 use proc::{Counters, CpuTimes, Memory};
+use traffic::Accounting;
 pub use wan::Wan;
 
-use crate::state::{AppState, RUNTIME_DIR, unix_now};
+use crate::state::{AppState, unix_now};
 
-const USAGE_STORE: &str = "usage";
+const ACCOUNTING_SECS: u64 = 2;
+const SAVE_SECS: u64 = 3600;
 
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,9 +50,20 @@ pub struct Throughput {
 	pub tx: u64,
 }
 
+#[derive(Clone, Copy, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceUsage {
+	pub down: u64,
+	pub up: u64,
+	pub today_down: u64,
+	pub today_up: u64,
+}
+
 pub struct Monitor {
 	latest: watch::Sender<Snapshot>,
 	history: Mutex<Recorder>,
+	ledger: tokio::sync::Mutex<Ledger>,
+	rates: Mutex<HashMap<String, (u64, u64)>>,
 }
 
 impl Default for Monitor {
@@ -53,6 +71,8 @@ impl Default for Monitor {
 		Self {
 			latest: watch::Sender::new(Snapshot::default()),
 			history: Mutex::default(),
+			ledger: tokio::sync::Mutex::default(),
+			rates: Mutex::default(),
 		}
 	}
 }
@@ -65,18 +85,35 @@ impl Monitor {
 	pub fn history(&self) -> History {
 		self.history.lock().expect("history lock poisoned").view()
 	}
-}
 
-async fn saved_usage() -> (u64, u64) {
-	let raw = tokio::fs::read_to_string(format!("{RUNTIME_DIR}/{USAGE_STORE}"))
-		.await
-		.unwrap_or_default();
-	let mut fields = raw.split_whitespace().filter_map(|field| field.parse().ok());
-	(fields.next().unwrap_or_default(), fields.next().unwrap_or_default())
-}
+	pub async fn device_usage(&self) -> HashMap<String, DeviceUsage> {
+		let ledger = self.ledger.lock().await;
+		let rates = self.rates.lock().expect("rates lock poisoned");
+		let mut usage: HashMap<String, DeviceUsage> = ledger
+			.devices
+			.iter()
+			.map(|(mac, [down, up])| {
+				(
+					mac.clone(),
+					DeviceUsage {
+						today_down: *down,
+						today_up: *up,
+						..DeviceUsage::default()
+					},
+				)
+			})
+			.collect();
+		for (mac, (down, up)) in rates.iter() {
+			let entry = usage.entry(mac.clone()).or_default();
+			entry.down = *down;
+			entry.up = *up;
+		}
+		usage
+	}
 
-async fn save_usage(day: u64, bytes: u64) {
-	let _ = tokio::fs::write(format!("{RUNTIME_DIR}/{USAGE_STORE}"), format!("{day} {bytes}")).await;
+	pub async fn save(&self) {
+		self.ledger.lock().await.save().await;
+	}
 }
 
 async fn uptime() -> u64 {
@@ -84,15 +121,33 @@ async fn uptime() -> u64 {
 	raw.split('.').next().and_then(|secs| secs.parse().ok()).unwrap_or_default()
 }
 
+async fn account(state: &AppState, accounting: &mut Accounting, wan_device: Option<String>) {
+	let gathered = tokio::task::spawn_blocking(|| {
+		Ok::<_, std::io::Error>((crate::netlink::conntrack::flows()?, crate::netlink::neighbors::list()?))
+	})
+	.await;
+	let Ok(Ok((flows, neighbors))) = gathered else { return };
+	let sample = accounting.sample(flows, &neighbors, wan_device.as_deref());
+	let mut ledger = state.monitor.ledger.lock().await;
+	let mut rates = HashMap::with_capacity(sample.per_device.len());
+	for (mac, (down, up)) in sample.per_device {
+		ledger.add_device(&mac, down, up);
+		rates.insert(mac, (down * 8 / ACCOUNTING_SECS, up * 8 / ACCOUNTING_SECS));
+	}
+	*state.monitor.rates.lock().expect("rates lock poisoned") = rates;
+}
+
 pub fn spawn(state: AppState) {
 	let internet = connectivity::spawn();
 	tokio::spawn(async move {
+		*state.monitor.ledger.lock().await = Ledger::load().await;
 		let mut ticker = tokio::time::interval(Duration::from_secs(1));
 		ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 		let mut cpu_before = CpuTimes::read().await.unwrap_or_default();
 		let mut wan = Wan::default();
 		let mut counters_before: Option<Counters> = None;
-		let (mut day, mut usage_today) = saved_usage().await;
+		let mut accounting = Accounting::default();
+		let mut watcher = watcher::Watcher::default();
 		let mut utc_offset = 0i64;
 
 		let mut tick = 0u64;
@@ -100,19 +155,21 @@ pub fn spawn(state: AppState) {
 			ticker.tick().await;
 			if tick.is_multiple_of(10) {
 				wan = Wan::read(&state.ubus).await;
+				watcher.check(&state, wan.device.as_deref()).await;
 			}
 			if tick.is_multiple_of(60) {
 				utc_offset = wan::utc_offset(&state.ubus).await.unwrap_or(utc_offset);
-				if tick > 0 {
-					save_usage(day, usage_today).await;
-				}
+			}
+			if tick > 0 && tick.is_multiple_of(SAVE_SECS) {
+				state.monitor.save().await;
 			}
 
 			let now = unix_now();
 			let today = (now as i64 + utc_offset) as u64 / 86_400;
-			if today != day {
-				day = today;
-				usage_today = 0;
+			state.monitor.ledger.lock().await.roll_over(today);
+
+			if tick.is_multiple_of(ACCOUNTING_SECS) {
+				account(&state, &mut accounting, wan.device.clone()).await;
 			}
 
 			let cpu_now = CpuTimes::read().await.unwrap_or(cpu_before);
@@ -129,7 +186,11 @@ pub fn spawn(state: AppState) {
 				_ => Counters::default(),
 			};
 			counters_before = counters;
-			usage_today += delta.rx + delta.tx;
+			let usage_today = {
+				let mut ledger = state.monitor.ledger.lock().await;
+				ledger.total += delta.rx + delta.tx;
+				ledger.total
+			};
 
 			let snapshot = Snapshot {
 				time: now,

@@ -2,9 +2,12 @@
 	type Props = {
 		options: { value: T; label: string }[];
 		label?: string;
-	} & ({ multiple?: false; value: T } | { multiple: true; value: T[] });
+	} & (
+		| { multiple?: false; value: T; onchange?: (value: T) => void }
+		| { multiple: true; value: T[]; onchange?: never }
+	);
 
-	let { options, label, multiple = false, value = $bindable() }: Props = $props();
+	let { options, label, multiple = false, value = $bindable(), onchange }: Props = $props();
 
 	function isOn(option: T) {
 		return multiple ? (value as T[]).includes(option) : value === option;
@@ -13,6 +16,7 @@
 	function pick(option: T) {
 		if (!multiple) {
 			value = option;
+			onchange?.(option);
 			return;
 		}
 		const current = value as T[];

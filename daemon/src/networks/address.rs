@@ -15,6 +15,13 @@ impl Cidr {
 		Self { addr, prefix }
 	}
 
+	pub fn with_host(self, addr: Ipv4Addr) -> Self {
+		Self {
+			addr,
+			prefix: self.prefix,
+		}
+	}
+
 	pub fn mask(self) -> u32 {
 		u32::MAX.checked_shl(32 - u32::from(self.prefix)).unwrap_or(0)
 	}
