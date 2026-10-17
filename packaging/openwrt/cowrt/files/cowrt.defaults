@@ -1,0 +1,17 @@
+#!/bin/sh
+# coWRT serves on port 80, so the stock web server moves to 8080 (and 8443 for HTTPS).
+
+uci -q get uhttpd.main.listen_http | grep -qE ':80( |$)' || exit 0
+
+uci -q batch <<-EOF
+	delete uhttpd.main.listen_http
+	add_list uhttpd.main.listen_http='0.0.0.0:8080'
+	add_list uhttpd.main.listen_http='[::]:8080'
+	delete uhttpd.main.listen_https
+	add_list uhttpd.main.listen_https='0.0.0.0:8443'
+	add_list uhttpd.main.listen_https='[::]:8443'
+	commit uhttpd
+EOF
+
+/etc/init.d/uhttpd running && /etc/init.d/uhttpd restart
+exit 0
