@@ -206,3 +206,31 @@ export interface NetworksOverview {
 	networks: Network[];
 	ports: Port[];
 }
+
+export type ConnectionKind = 'dhcp' | 'static' | 'pppoe';
+export type Acceleration = 'off' | 'software' | 'hardware';
+
+export interface InternetConnection {
+	kind: ConnectionKind;
+	port: string;
+	vlan: number | null;
+	address: string | null;
+	gateway: string | null;
+	dns: string[];
+	username: string | null;
+	password: string | null;
+	mac: string | null;
+}
+
+export interface SmartQueue {
+	enabled: boolean;
+	download: number;
+	upload: number;
+}
+
+export interface InternetOverview {
+	connection: InternetConnection;
+	ports: string[];
+	qos: SmartQueue;
+	acceleration: Acceleration;
+}

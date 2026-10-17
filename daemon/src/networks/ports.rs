@@ -43,6 +43,20 @@ async fn is_physical_ethernet(name: &str) -> bool {
 		&& read(dir.join("type")).await.as_deref() == Some("1")
 }
 
+pub async fn physical() -> Vec<String> {
+	let mut ports = Vec::new();
+	if let Ok(mut entries) = fs::read_dir("/sys/class/net").await {
+		while let Ok(Some(entry)) = entries.next_entry().await {
+			let name = entry.file_name().to_string_lossy().into_owned();
+			if is_physical_ethernet(&name).await {
+				ports.push(name);
+			}
+		}
+	}
+	ports.sort_by_key(|name| natural_key(name));
+	ports
+}
+
 pub async fn detect(wan_devices: &[String], bridge_ports: &[String]) -> Vec<String> {
 	let board: Value = fs::read_to_string("/etc/board.json")
 		.await
@@ -52,14 +66,7 @@ pub async fn detect(wan_devices: &[String], bridge_ports: &[String]) -> Vec<Stri
 	let wan: BTreeSet<&String> = wan_devices.iter().collect();
 	let mut ports: BTreeSet<String> = board_ports(&board, "lan").into_iter().collect();
 	ports.extend(bridge_ports.iter().cloned());
-	if let Ok(mut entries) = fs::read_dir("/sys/class/net").await {
-		while let Ok(Some(entry)) = entries.next_entry().await {
-			let name = entry.file_name().to_string_lossy().into_owned();
-			if is_physical_ethernet(&name).await {
-				ports.insert(name);
-			}
-		}
-	}
+	ports.extend(physical().await);
 	for role in ["wan", "wan6"] {
 		for port in board_ports(&board, role) {
 			ports.remove(&port);

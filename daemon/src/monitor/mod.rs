@@ -3,7 +3,7 @@ mod history;
 mod ledger;
 mod proc;
 mod traffic;
-mod wan;
+pub mod wan;
 mod watcher;
 
 use std::collections::HashMap;

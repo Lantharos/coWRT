@@ -3,8 +3,10 @@
 	import { api } from '#lib/api/client.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
-	import type { Network, NetworksOverview, Port } from '#lib/api/types.js';
+	import type { InternetOverview, Network, NetworksOverview, Port } from '#lib/api/types.js';
 	import { duration } from '#lib/format.js';
+	import ConnectionSheet from '#lib/components/internet/ConnectionSheet.svelte';
+	import Performance from '#lib/components/internet/Performance.svelte';
 	import NetworkSheet from '#lib/components/networks/NetworkSheet.svelte';
 	import PortSheet from '#lib/components/networks/PortSheet.svelte';
 	import PortTile from '#lib/components/networks/PortTile.svelte';
@@ -15,6 +17,9 @@
 	import Section from '#lib/components/ui/Section.svelte';
 
 	const overview = poll(() => api.get<NetworksOverview>('/networks'), 10000);
+	const settings = poll(() => api.get<InternetOverview>('/internet'), 60000);
+
+	let editingConnection = $state(false);
 
 	let editing = $state<string | 'new' | null>(null);
 	let selectedPort = $state<string | null>(null);
@@ -83,6 +88,9 @@
 {/if}
 
 <Section title="Internet">
+	{#snippet actions()}
+		<Button size="sm" onclick={() => (editingConnection = true)}>Change</Button>
+	{/snippet}
 	<Block>
 		<Facts
 			facts={[
@@ -109,6 +117,13 @@
 			]}
 		/>
 	</Block>
+	{#if settings.data}
+		<Performance
+			qos={settings.data.qos}
+			acceleration={settings.data.acceleration}
+			onsaved={() => settings.refresh()}
+		/>
+	{/if}
 </Section>
 
 <NetworkSheet
@@ -123,4 +138,12 @@
 	{networks}
 	onclose={() => (selectedPort = null)}
 	onsaved={() => overview.refresh()}
+/>
+
+<ConnectionSheet
+	open={editingConnection}
+	connection={settings.data?.connection ?? null}
+	ports={settings.data?.ports ?? []}
+	onclose={() => (editingConnection = false)}
+	onsaved={() => settings.refresh()}
 />

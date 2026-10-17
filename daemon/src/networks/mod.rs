@@ -3,10 +3,11 @@ mod adopt;
 mod edit;
 mod firewall;
 mod layout;
-mod ports;
+pub mod ports;
 
 use serde::{Deserialize, Serialize};
 
+pub use address::Cidr;
 pub use adopt::adopt;
 pub use edit::{NetworkInput, PortInput, create, delete, update, update_port};
 pub use layout::Layout;

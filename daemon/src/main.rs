@@ -2,6 +2,7 @@ mod api;
 mod config;
 mod devices;
 mod http;
+mod internet;
 mod monitor;
 mod netlink;
 mod networks;

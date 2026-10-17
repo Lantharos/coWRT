@@ -1,4 +1,5 @@
 mod devices;
+mod internet;
 mod live;
 mod networks;
 mod system;
@@ -16,6 +17,10 @@ pub fn routes() -> Router<AppState> {
 		.route("/system", get(system::info))
 		.route("/system/history", get(system::history))
 		.route("/live", get(live::socket))
+		.route("/internet", get(internet::overview))
+		.route("/internet/connection", put(internet::update_connection))
+		.route("/internet/qos", put(internet::update_qos))
+		.route("/internet/acceleration", put(internet::update_acceleration))
 		.route("/networks", get(networks::overview).post(networks::create))
 		.route("/networks/{id}", put(networks::update).delete(networks::delete))
 		.route("/ports/{name}", put(networks::update_port))
