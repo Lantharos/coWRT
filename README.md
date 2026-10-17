@@ -8,7 +8,7 @@ A modern interface for OpenWrt routers. coWRT replaces LuCI with a fast, friendl
 | --- | --- |
 | `daemon/` | `cowrtd`, a small Rust service that runs on the router. It talks to OpenWrt over ubus, serves the web app, and streams live stats over a WebSocket. |
 | `web/` | The web app, built with SvelteKit and Tailwind and shipped to the router as static files. |
-| `packaging/openwrt/` | The init script and default config installed on the router. |
+| `packaging/` | The OpenWrt package definition and the script that builds it. |
 | `dev/` | Scripts for running a development router in a VM and deploying to it. |
 
 `cowrtd` signs you in with the router's root password and uses OpenWrt's own configuration system, so anything you change in coWRT shows up in UCI as usual, and the other way around.
@@ -33,11 +33,14 @@ dev/vm/run.sh -daemonize
 
 The VM's root password is whatever you set over the serial console (`.vm/console.sock`). SSH in with `dev/vm/ssh.sh` once your key is in `/etc/dropbear/authorized_keys`.
 
-Build coWRT and install it into the VM:
+Build the package and install it into the VM:
 
 ```bash
-dev/deploy.sh
+packaging/build.sh x86_64
+dev/vm/ssh.sh 'cat > /tmp/cowrt.apk && apk add --allow-untrusted /tmp/cowrt.apk' < dist/cowrt-0.1.0-x86_64.apk
 ```
+
+After that, `dev/deploy.sh` swaps in a fresh build of the daemon and web app in a few seconds.
 
 The VM's LAN side has three ports (eth0, eth2 and eth3) and its WAN is eth1. The router UI is then served at http://127.0.0.1:10080. For frontend work, run the Vite dev server instead. It proxies `/api` to the VM:
 
@@ -53,11 +56,16 @@ The VM uses `mac80211_hwsim` radios. `dev/vm/clients.sh` runs inside the VM at b
 
 ## Building for a router
 
-The ASUS TUF-AX6000 (MediaTek Filogic) and most current routers use 64-bit ARM:
-
 ```bash
-cd daemon && cargo zigbuild --release --target aarch64-unknown-linux-musl
-cd web && bun run build
+packaging/build.sh
 ```
 
-Copy `daemon/target/aarch64-unknown-linux-musl/release/cowrtd` to `/usr/sbin/cowrtd`, `web/build` to `/usr/share/cowrt/www`, and the files in `packaging/openwrt/files` to `/etc/init.d/cowrtd` and `/etc/config/cowrt`. coWRT listens on port 80 by default, so move uhttpd (and LuCI with it) to another port first.
+This builds the web app, cross-compiles `cowrtd`, and packages both with the official OpenWrt SDK containers (Podman), producing `dist/cowrt-<version>-x86_64.apk` and `dist/cowrt-<version>-aarch64_cortex-a53.apk`. The ARM package fits the ASUS TUF-AX6000 and other MediaTek Filogic routers.
+
+Copy the package to the router and install it:
+
+```bash
+apk add --allow-untrusted /tmp/cowrt-0.1.0-aarch64_cortex-a53.apk
+```
+
+coWRT takes over port 80 and moves the stock web server (and LuCI with it) to port 8080. Removing the package with `apk del cowrt` moves it back.
