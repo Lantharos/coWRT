@@ -1,11 +1,15 @@
 mod api;
 mod config;
+mod ddns;
 mod devices;
+mod forwards;
 mod http;
 mod internet;
 mod monitor;
 mod netlink;
 mod networks;
+mod outbound;
+mod packages;
 mod policy;
 mod qos;
 mod secret;
@@ -50,6 +54,7 @@ async fn main() {
 		eprintln!("cowrtd: could not set up the network layout: {err}");
 	}
 	monitor::spawn(state.clone());
+	ddns::spawn(state.clone());
 
 	let listener = tokio::net::TcpListener::bind(args.listen)
 		.await

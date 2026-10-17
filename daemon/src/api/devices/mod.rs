@@ -1,5 +1,5 @@
 mod controls;
-mod reservation;
+pub mod reservation;
 
 use std::net::{Ipv4Addr, SocketAddr};
 

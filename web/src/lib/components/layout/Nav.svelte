@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { Cpu, Gauge, LogOut, MonitorSmartphone, Network, Wifi } from '@lucide/svelte';
+	import { Cpu, Gauge, Globe, LogOut, MonitorSmartphone, Network, Wifi } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import Logo from './Logo.svelte';
@@ -11,6 +11,7 @@
 		{ href: '/devices', label: 'Devices', icon: MonitorSmartphone },
 		{ href: '/wifi', label: 'Wi-Fi', icon: Wifi },
 		{ href: '/networks', label: 'Networks', icon: Network },
+		{ href: '/access', label: 'Access', icon: Globe },
 		{ href: '/system', label: 'System', icon: Cpu }
 	];
 
@@ -30,19 +31,19 @@
 		<span class="font-display text-xl font-medium tracking-tight">coWRT</span>
 	</a>
 	<nav
-		class="fixed inset-x-0 bottom-0 z-30 flex justify-around bg-bg/90 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-lg sm:static sm:z-auto sm:flex-1 sm:justify-start sm:gap-1 sm:bg-transparent sm:p-0 sm:backdrop-blur-none"
+		class="fixed inset-x-0 bottom-0 z-30 flex justify-around bg-bg/90 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-lg md:static md:z-auto md:flex-1 md:justify-start md:gap-1 md:bg-transparent md:p-0 md:backdrop-blur-none"
 	>
 		{#each tabs as tab (tab.href)}
 			<a
 				href={tab.href}
 				aria-current={active(tab.href) ? 'page' : undefined}
-				class="flex flex-col items-center gap-1 rounded-[13px] px-3 py-1.5 text-[11px] whitespace-nowrap transition-colors sm:flex-row sm:px-3.5 sm:py-2 sm:text-[15px] {active(
+				class="flex flex-col items-center gap-1 rounded-[13px] px-3 py-1.5 text-[11px] whitespace-nowrap transition-colors md:flex-row md:px-3.5 md:py-2 md:text-[15px] {active(
 					tab.href
 				)
-					? 'text-fg sm:bg-raised'
-					: 'text-faint hover:text-fg sm:text-muted'}"
+					? 'text-fg md:bg-raised'
+					: 'text-faint hover:text-fg md:text-muted'}"
 			>
-				<tab.icon size={20} class="sm:hidden" />
+				<tab.icon size={20} class="md:hidden" />
 				{tab.label}
 			</a>
 		{/each}

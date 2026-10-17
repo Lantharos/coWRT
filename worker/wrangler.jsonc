@@ -1,0 +1,9 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "cowrt",
+	"account_id": "2e3bfcbc9512a7ab1ea3a9cb9a474b30",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-01",
+	"workers_dev": true,
+	"observability": { "enabled": true }
+}
