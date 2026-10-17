@@ -45,7 +45,7 @@ The VM's LAN side has three ports (eth0, eth2 and eth3) and its WAN is eth1. The
 bun run --cwd web dev
 ```
 
-Point it at a different router with `COWRT_ROUTER=http://192.168.1.1`.
+Point it at a different router with `COWRT_ROUTER=http://10.0.0.1`.
 
 ### Simulated Wi-Fi clients
 
