@@ -1,0 +1,47 @@
+<script lang="ts">
+	import { PlugZap, Unplug } from '@lucide/svelte';
+	import type { Snapshot } from '#lib/api/types.js';
+	import { duration } from '#lib/format.js';
+
+	let { snapshot }: { snapshot: Snapshot | null } = $props();
+
+	const state = $derived.by(() => {
+		if (!snapshot || !snapshot.internet.checked) return 'checking';
+		if (snapshot.internet.online) return 'online';
+		return snapshot.wan.up ? 'unreachable' : 'down';
+	});
+
+	const detail = $derived.by(() => {
+		if (!snapshot) return 'Talking to your router…';
+		const { wan, internet } = snapshot;
+		switch (state) {
+			case 'online':
+				return `Up for ${duration(wan.uptime)}${internet.latencyMs !== null ? ` · ${internet.latencyMs} ms to the internet` : ''}`;
+			case 'unreachable':
+				return 'Your router has an address, but nothing on the internet answers. This is usually your provider.';
+			case 'down':
+				return 'The internet port has no connection. Check the cable to your modem.';
+			default:
+				return 'Checking your connection…';
+		}
+	});
+</script>
+
+<div class="flex flex-col gap-3">
+	<h1
+		class="font-display text-[clamp(2rem,5vw,3.25rem)] leading-[1.05] font-medium tracking-[-0.01em]"
+	>
+		{#if state === 'online'}
+			You're <span class="inline-flex items-center gap-2 text-accent"
+				><PlugZap class="size-[0.85em]" strokeWidth={2.2} />connected</span
+			> to the internet
+		{:else if state === 'checking'}
+			<span class="text-muted">Checking your connection</span>
+		{:else}
+			You're <span class="inline-flex items-center gap-2 text-danger"
+				><Unplug class="size-[0.85em]" strokeWidth={2.2} />offline</span
+			>
+		{/if}
+	</h1>
+	<p class="max-w-[60ch] text-[17px] text-muted">{detail}</p>
+</div>
