@@ -4,6 +4,7 @@ mod live;
 mod networks;
 mod sharing;
 mod system;
+mod vpn;
 mod wifi;
 
 use axum::Router;
@@ -28,6 +29,12 @@ pub fn routes() -> Router<AppState> {
 		.route("/forwards/check", post(sharing::check))
 		.route("/upnp", put(sharing::set_upnp))
 		.route("/ddns", put(sharing::set_ddns))
+		.route("/vpn", get(vpn::overview))
+		.route("/vpn/server", put(vpn::update_server))
+		.route("/vpn/server/peers", post(vpn::add_peer))
+		.route("/vpn/server/peers/{id}", axum::routing::delete(vpn::remove_peer))
+		.route("/vpn/server/peers/{id}/config", get(vpn::peer_config))
+		.route("/vpn/client", put(vpn::update_client))
 		.route("/networks", get(networks::overview).post(networks::create))
 		.route("/networks/{id}", put(networks::update).delete(networks::delete))
 		.route("/ports/{name}", put(networks::update_port))

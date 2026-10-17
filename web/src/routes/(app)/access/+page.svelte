@@ -2,12 +2,20 @@
 	import { Plus } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { poll } from '#lib/api/poll.svelte.js';
-	import type { Device, Forward, SharingOverview } from '#lib/api/types.js';
+	import type {
+		Device,
+		Forward,
+		NetworksOverview,
+		SharingOverview,
+		VpnOverview
+	} from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Ddns from '#lib/components/access/Ddns.svelte';
 	import ForwardSheet from '#lib/components/access/ForwardSheet.svelte';
 	import Reachability from '#lib/components/access/Reachability.svelte';
 	import Upnp from '#lib/components/access/Upnp.svelte';
+	import VpnProvider from '#lib/components/access/VpnProvider.svelte';
+	import VpnServer from '#lib/components/access/VpnServer.svelte';
 	import Block from '#lib/components/ui/Block.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Section from '#lib/components/ui/Section.svelte';
@@ -15,6 +23,8 @@
 
 	const sharing = poll(() => api.get<SharingOverview>('/sharing'), 30000);
 	const devices = poll(() => api.get<Device[]>('/devices'), 30000);
+	const vpn = poll(() => api.get<VpnOverview>('/vpn'), 15000);
+	const networks = poll(() => api.get<NetworksOverview>('/networks'), 60000);
 
 	let editing = $state<string | 'new' | null>(null);
 
@@ -52,6 +62,17 @@
 		<Reachability reach={sharing.data.reach} />
 		<Ddns ddns={sharing.data.ddns} onsaved={() => sharing.refresh()} />
 	</Section>
+
+	{#if vpn.data}
+		<Section title="VPN">
+			<VpnServer server={vpn.data.server} onsaved={() => vpn.refresh()} />
+			<VpnProvider
+				provider={vpn.data.client}
+				networks={networks.data?.networks ?? []}
+				onsaved={() => vpn.refresh()}
+			/>
+		</Section>
+	{/if}
 
 	<Section title="Port forwards">
 		{#each forwards as forward (forward.id)}

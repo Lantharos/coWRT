@@ -15,6 +15,7 @@ mod qos;
 mod secret;
 mod state;
 mod ubus;
+mod vpn;
 mod wifi;
 
 use std::net::SocketAddr;

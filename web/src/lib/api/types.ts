@@ -288,3 +288,39 @@ export interface SharingOverview {
 	upnp: Upnp;
 	ddns: Ddns;
 }
+
+export interface PeerStatus {
+	endpoint: string | null;
+	handshake: number | null;
+	received: number;
+	sent: number;
+}
+
+export interface VpnPeer {
+	id: string;
+	name: string;
+	address: string;
+	status: PeerStatus;
+}
+
+export interface VpnServer {
+	enabled: boolean;
+	port: number;
+	access: 'everything' | 'internet';
+	endpoint: string | null;
+	peers: VpnPeer[];
+}
+
+export interface VpnProvider {
+	configured: boolean;
+	enabled: boolean;
+	name: string;
+	endpoint: string | null;
+	networks: string[];
+	status: PeerStatus;
+}
+
+export interface VpnOverview {
+	server: VpnServer;
+	client: VpnProvider;
+}

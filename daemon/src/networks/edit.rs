@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::address::Cidr;
-use super::firewall::{self, Policy};
+use super::firewall;
 use super::layout::{Layout, Membership, PRIMARY};
 use super::{Dhcp, ports};
 use crate::config::uci;
@@ -95,16 +95,7 @@ fn slug(layout: &Layout, name: &str) -> String {
 }
 
 async fn sync_firewall(ubus: &Ubus) -> Result<(), ApiError> {
-	let managed = uci::sections_of(ubus, "cowrt", "network").await?;
-	let policies: Vec<Policy> = managed
-		.iter()
-		.map(|n| Policy {
-			id: n.name.clone(),
-			trusted: n.flag("trusted"),
-			internet: n.flag("internet"),
-		})
-		.collect();
-	Ok(firewall::sync(ubus, &policies).await?)
+	Ok(firewall::sync(ubus).await?)
 }
 
 pub(super) async fn move_reservations(ubus: &Ubus, from: Cidr, to: Cidr) -> Result<(), ubus::Error> {

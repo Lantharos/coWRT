@@ -1,7 +1,7 @@
 mod address;
 mod adopt;
 mod edit;
-mod firewall;
+pub mod firewall;
 mod layout;
 pub mod ports;
 

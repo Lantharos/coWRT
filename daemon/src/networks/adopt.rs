@@ -4,7 +4,7 @@ use serde_json::json;
 
 use super::address::Cidr;
 use super::edit;
-use super::firewall::{self, Policy};
+use super::firewall;
 use super::layout::{DEFAULT_BRIDGE, Layout, Membership, PRIMARY};
 use crate::config::{self, uci};
 use crate::ubus::{self, Ubus};
@@ -99,14 +99,9 @@ async fn convert(ubus: &Ubus) -> Result<(), ubus::Error> {
 	}
 
 	retire_stock_firewall(ubus).await?;
-	let primary = Policy {
-		id: PRIMARY.to_owned(),
-		trusted: true,
-		internet: true,
-	};
-	firewall::sync(ubus, &[primary]).await?;
 	let network = json!({ "name": "Home", "color": "green", "trusted": "1", "internet": "1" });
 	uci::add(ubus, "cowrt", "network", Some(PRIMARY), network).await?;
+	firewall::sync(ubus).await?;
 	Ok(())
 }
 
