@@ -63,7 +63,7 @@
 			const point = (column: number, row: number) => {
 				const age = row + drift;
 				const x = column / COLUMNS - 0.5;
-				const lift = level(age) * ridge(x, age) * Math.exp(-((x * 2.4) ** 2));
+				const lift = level(Math.max(0, age)) * ridge(x, age) * Math.exp(-((x * 2.4) ** 2));
 				const depth = 1 / (1 + age * 0.16);
 				return [
 					width / 2 + x * 1.6 * width * 0.9 * depth,
@@ -73,7 +73,7 @@
 
 			context.clearRect(0, 0, width, height);
 			context.lineWidth = 1;
-			for (let row = ROWS; row >= 0; row--) {
+			for (let row = ROWS; row >= -1; row--) {
 				context.strokeStyle = `rgba(${GREEN}, ${0.1 + (1 - row / ROWS) * 0.7})`;
 				context.beginPath();
 				for (let column = 0; column <= COLUMNS; column++) {
@@ -86,9 +86,9 @@
 			context.strokeStyle = columnStroke;
 			context.beginPath();
 			for (let column = 0; column <= COLUMNS; column++) {
-				for (let row = 0; row <= ROWS; row++) {
+				for (let row = -1; row <= ROWS; row++) {
 					const [x, y] = point(column, row);
-					if (row === 0) context.moveTo(x, y);
+					if (row === -1) context.moveTo(x, y);
 					else context.lineTo(x, y);
 				}
 			}
