@@ -1,2 +1,4 @@
 .vm/
+.sdk/
+dist/
 daemon/target/
