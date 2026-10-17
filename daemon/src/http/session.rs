@@ -50,9 +50,7 @@ impl Sessions {
 	}
 
 	pub async fn create(&self) -> String {
-		let mut bytes = [0u8; 32];
-		getrandom::fill(&mut bytes).expect("system randomness unavailable");
-		let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+		let token = crate::secret::token();
 		let now = unix_now();
 		let mut tokens = self.tokens.lock().await;
 		tokens.retain(|_, expires| *expires > now);

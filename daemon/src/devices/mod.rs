@@ -6,6 +6,7 @@ use std::net::IpAddr;
 use serde::Serialize;
 
 use crate::config::uci;
+use crate::networks::Layout;
 use crate::ubus::{self, Ubus};
 
 #[derive(Serialize)]
@@ -22,6 +23,7 @@ pub struct Device {
 	pub reserved_ip: Option<String>,
 	pub lease_expires: Option<u64>,
 	pub is_you: bool,
+	pub network: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -67,6 +69,7 @@ impl Device {
 			reserved_ip: None,
 			lease_expires: None,
 			is_you: false,
+			network: None,
 		}
 	}
 }
@@ -146,12 +149,19 @@ pub async fn inventory(ubus: &Ubus, requester: Option<IpAddr>) -> Result<Vec<Dev
 		}
 	}
 
+	let subnets = Layout::load(ubus).await?.subnets();
 	let requester = requester.map(|ip| ip.to_string());
 	let mut devices: Vec<Device> = found
 		.devices
 		.into_values()
 		.map(|mut device| {
 			device.is_you = requester.is_some() && device.ipv4 == requester;
+			device.network = device
+				.ipv4
+				.as_deref()
+				.and_then(|ip| ip.parse().ok())
+				.and_then(|ip| subnets.iter().find(|(_, cidr)| cidr.contains(ip)))
+				.map(|(id, _)| id.clone());
 			device.name = device
 				.custom_name
 				.clone()

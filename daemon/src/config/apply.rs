@@ -7,6 +7,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::http::ApiError;
+use crate::secret;
 use crate::ubus::Ubus;
 
 const CONFIG_DIR: &str = "/etc/config";
@@ -37,7 +38,7 @@ impl Snapshot {
 }
 
 struct Pending {
-	id: u64,
+	token: String,
 	rollback: JoinHandle<()>,
 }
 
@@ -50,17 +51,17 @@ pub struct Applied {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Confirmation {
-	pub id: u64,
+	pub token: String,
 	pub seconds: u64,
 }
 
 #[derive(Default)]
 pub struct Applier {
-	serial: Mutex<u64>,
+	busy: Mutex<()>,
 	pending: Arc<Mutex<Option<Pending>>>,
 }
 
-async fn reload(ubus: &Ubus, configs: impl Iterator<Item = &str>) {
+pub async fn reload<'a>(ubus: &Ubus, configs: impl Iterator<Item = &'a str>) {
 	for config in configs {
 		let _ = ubus
 			.call(
@@ -77,7 +78,7 @@ impl Applier {
 	where
 		F: AsyncFnOnce(&Ubus) -> Result<(), ApiError>,
 	{
-		let mut serial = self.serial.lock().await;
+		let _busy = self.busy.lock().await;
 		if self.pending.lock().await.is_some() {
 			return Err(ApiError::conflict("Another change is still waiting to be confirmed"));
 		}
@@ -97,31 +98,35 @@ impl Applier {
 		let Some(window) = rollback else {
 			return Ok(Applied { confirm: None });
 		};
-		*serial += 1;
-		let id = *serial;
+		let token = secret::token();
+		let expected = token.clone();
 		let pending = self.pending.clone();
 		let bus = ubus.clone();
 		let rollback = tokio::spawn(async move {
 			tokio::time::sleep(window).await;
 			let mut slot = pending.lock().await;
-			if slot.as_ref().is_some_and(|pending| pending.id == id) {
+			if slot.as_ref().is_some_and(|pending| pending.token == expected) {
 				*slot = None;
 				drop(slot);
+				eprintln!("cowrtd: change was not confirmed, rolling back");
 				snapshot.restore(&bus).await;
 			}
 		});
-		*self.pending.lock().await = Some(Pending { id, rollback });
+		*self.pending.lock().await = Some(Pending {
+			token: token.clone(),
+			rollback,
+		});
 		Ok(Applied {
 			confirm: Some(Confirmation {
-				id,
+				token,
 				seconds: window.as_secs(),
 			}),
 		})
 	}
 
-	pub async fn confirm(&self, id: u64) -> Result<(), ApiError> {
+	pub async fn confirm(&self, token: &str) -> Result<(), ApiError> {
 		let mut slot = self.pending.lock().await;
-		match slot.take_if(|pending| pending.id == id) {
+		match slot.take_if(|pending| pending.token == token) {
 			Some(pending) => {
 				pending.rollback.abort();
 				Ok(())

@@ -74,6 +74,7 @@ export interface Device {
 	reservedIp: string | null;
 	leaseExpires: number | null;
 	isYou: boolean;
+	network: string | null;
 }
 
 export type Security = 'wpa3' | 'wpa2-wpa3' | 'wpa2' | 'enhanced-open' | 'open';
@@ -127,5 +128,53 @@ export interface WifiOverview {
 }
 
 export interface Applied {
-	confirm: { id: number; seconds: number } | null;
+	confirm: { token: string; seconds: number } | null;
+}
+
+export type NetworkColor = 'green' | 'blue' | 'purple' | 'orange' | 'pink' | 'teal';
+
+export interface Dhcp {
+	enabled: boolean;
+	start: number;
+	limit: number;
+	leaseTime: string;
+}
+
+export interface Network {
+	id: string;
+	name: string;
+	color: NetworkColor;
+	primary: boolean;
+	vlan: number;
+	address: string | null;
+	dhcp: Dhcp | null;
+	trusted: boolean;
+	internet: boolean;
+	ports: string[];
+	tagged: string[];
+	wifi: string[];
+}
+
+export interface NetworkInput {
+	name: string;
+	color: NetworkColor;
+	vlan: number;
+	address: string;
+	dhcp: Dhcp;
+	trusted: boolean;
+	internet: boolean;
+}
+
+export interface Port {
+	name: string;
+	label: string;
+	up: boolean;
+	speed: number | null;
+	network: string | null;
+	tagged: string[];
+}
+
+export interface NetworksOverview {
+	networks: Network[];
+	ports: Port[];
 }

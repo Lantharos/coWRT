@@ -13,6 +13,14 @@ A modern interface for OpenWrt routers. coWRT replaces LuCI with a fast, friendl
 
 `cowrtd` signs you in with the router's root password and uses OpenWrt's own configuration system, so anything you change in coWRT shows up in UCI as usual, and the other way around.
 
+## Networks
+
+coWRT thinks in networks rather than bridges, devices and interfaces. A network is a group of devices with its own address range, and you decide whether it can reach the internet and whether it can reach your other networks. Ports and Wi-Fi networks simply say which network they put devices on.
+
+Under the hood every network is a VLAN on one VLAN-aware bridge, with a matching interface, DHCP pool and firewall zone. The first time `cowrtd` starts it converts the stock OpenWrt layout to this model: the existing LAN becomes "Home" on VLAN 1, and if it still uses the stock 192.168.1.1 it moves to 10.0.0.1 (or 10.10.0.1 when the upstream connection already uses 10.0.0.x). Address reservations move along with it. New networks get 10.0.N.1/24, where N is their VLAN number.
+
+Changes that could cut you off, like editing a network or a port, are rolled back automatically after a minute unless your browser checks back in with the router.
+
 ## Development
 
 You'll need Rust with [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild), Bun, and QEMU with KVM.
@@ -31,7 +39,7 @@ Build coWRT and install it into the VM:
 dev/deploy.sh
 ```
 
-The router UI is then served at http://127.0.0.1:10080. For frontend work, run the Vite dev server instead. It proxies `/api` to the VM:
+The VM's LAN side has three ports (eth0, eth2 and eth3) and its WAN is eth1. The router UI is then served at http://127.0.0.1:10080. For frontend work, run the Vite dev server instead. It proxies `/api` to the VM:
 
 ```bash
 bun run --cwd web dev

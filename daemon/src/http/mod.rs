@@ -20,7 +20,8 @@ use crate::state::AppState;
 pub fn router(state: AppState, www: &Path) -> Router {
 	let api = api::routes()
 		.route_layer(middleware::from_fn_with_state(state.clone(), auth::require))
-		.merge(auth::routes());
+		.merge(auth::routes())
+		.merge(api::public_routes());
 
 	let assets = ServeDir::new(www)
 		.precompressed_br()

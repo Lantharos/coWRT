@@ -2,13 +2,17 @@
 	import { Search } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { poll } from '#lib/api/poll.svelte.js';
-	import type { Device } from '#lib/api/types.js';
+	import type { Device, NetworksOverview } from '#lib/api/types.js';
 	import DeviceRow from '#lib/components/devices/DeviceRow.svelte';
 	import DeviceSheet from '#lib/components/devices/DeviceSheet.svelte';
 	import Block from '#lib/components/ui/Block.svelte';
 	import Section from '#lib/components/ui/Section.svelte';
 
 	const devices = poll(() => api.get<Device[]>('/devices'), 5000);
+	const networks = poll(() => api.get<NetworksOverview>('/networks'), 30000);
+
+	const networkOf = (device: Device) =>
+		networks.data?.networks.find((network) => network.id === device.network);
 
 	let query = $state('');
 	let selected = $state<string | null>(null);
@@ -52,7 +56,7 @@
 
 <Section title="Online">
 	{#each online as device (device.mac)}
-		<DeviceRow {device} onselect={(d) => (selected = d.mac)} />
+		<DeviceRow {device} network={networkOf(device)} onselect={(d) => (selected = d.mac)} />
 	{:else}
 		<Block description={devices.data ? 'No devices match.' : 'Looking for devices…'} />
 	{/each}
@@ -61,7 +65,7 @@
 {#if offline.length}
 	<Section title="Seen before">
 		{#each offline as device (device.mac)}
-			<DeviceRow {device} onselect={(d) => (selected = d.mac)} />
+			<DeviceRow {device} network={networkOf(device)} onselect={(d) => (selected = d.mac)} />
 		{/each}
 	</Section>
 {/if}

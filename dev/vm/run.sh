@@ -25,6 +25,10 @@ exec qemu-system-x86_64 \
 	-device virtio-net-pci,netdev=lan \
 	-netdev "user,id=wan,hostfwd=tcp:127.0.0.1:10022-:22,hostfwd=tcp:127.0.0.1:10080-:80" \
 	-device virtio-net-pci,netdev=wan \
+	-netdev socket,id=port2,mcast=230.0.0.1:10102 \
+	-device virtio-net-pci,netdev=port2 \
+	-netdev socket,id=port3,mcast=230.0.0.1:10103 \
+	-device virtio-net-pci,netdev=port3 \
 	-display none \
 	-serial "unix:$dir/console.sock,server,nowait" \
 	-pidfile "$dir/qemu.pid" \

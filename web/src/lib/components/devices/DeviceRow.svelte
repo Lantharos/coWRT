@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { Cable } from '@lucide/svelte';
-	import type { Device } from '#lib/api/types.js';
+	import type { Device, Network } from '#lib/api/types.js';
 	import { bandLabel } from '#lib/format.js';
+	import { networkColors } from '#lib/components/networks/colors.js';
 	import { kinds, kindOf } from './kinds';
 	import SignalBars from './SignalBars.svelte';
 
-	let { device, onselect }: { device: Device; onselect?: (device: Device) => void } = $props();
+	type Props = { device: Device; network?: Network; onselect?: (device: Device) => void };
+	let { device, network, onselect }: Props = $props();
 
 	const Icon = $derived(kinds[kindOf(device)].icon);
 	const connection = $derived(device.connection);
@@ -28,7 +30,12 @@
 			{device.name}
 			{#if device.isYou}<span class="text-[13px] font-normal text-accent">This device</span>{/if}
 		</span>
-		<span class="truncate text-[13px] text-muted">
+		<span class="flex items-center gap-1.5 truncate text-[13px] text-muted">
+			{#if network}
+				<span class="size-2 shrink-0 rounded-full" style:background={networkColors[network.color]}
+				></span>
+				{network.name} ·
+			{/if}
 			{device.ipv4 ?? 'No address'}{#if device.reservedIp}&nbsp;· reserved{/if}
 		</span>
 	</span>

@@ -2,7 +2,13 @@
 	import { Plus, Radio as RadioIcon } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { poll } from '#lib/api/poll.svelte.js';
-	import type { Device, Radio, WifiNetwork, WifiOverview } from '#lib/api/types.js';
+	import type {
+		Device,
+		NetworksOverview,
+		Radio,
+		WifiNetwork,
+		WifiOverview
+	} from '#lib/api/types.js';
 	import { bandLabel } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Block from '#lib/components/ui/Block.svelte';
@@ -14,6 +20,7 @@
 
 	const wifi = poll(() => api.get<WifiOverview>('/wifi'), 10000);
 	const devices = poll(() => api.get<Device[]>('/devices'), 10000);
+	const networks = poll(() => api.get<NetworksOverview>('/networks'), 30000);
 
 	let editing = $state<string | 'new' | null>(null);
 	let tuning = $state<string | null>(null);
@@ -124,6 +131,7 @@
 <NetworkSheet
 	network={editingNetwork}
 	{radios}
+	networks={networks.data?.networks ?? []}
 	connectedHere={!!you &&
 		you.connection.kind === 'wifi' &&
 		editingNetwork !== 'new' &&

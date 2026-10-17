@@ -2,7 +2,14 @@
 	import { untrack } from 'svelte';
 	import { Trash2 } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
-	import type { Band, Radio, Security, WifiNetwork, WifiNetworkInput } from '#lib/api/types.js';
+	import type {
+		Band,
+		Network,
+		Radio,
+		Security,
+		WifiNetwork,
+		WifiNetworkInput
+	} from '#lib/api/types.js';
 	import { bandLabel } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -15,11 +22,16 @@
 	type Props = {
 		network: WifiNetwork | 'new' | null;
 		radios: Radio[];
+		networks: Network[];
 		connectedHere: boolean;
 		onclose: () => void;
 		onsaved: () => void;
 	};
-	let { network, radios, connectedHere, onclose, onsaved }: Props = $props();
+	let { network, radios, networks, connectedHere, onclose, onsaved }: Props = $props();
+
+	const networkOptions = $derived(
+		networks.map((n) => ({ value: n.id, label: n.name, detail: n.address ?? undefined }))
+	);
 
 	const bands = $derived([...new Set(radios.map((radio) => radio.band))] as Band[]);
 
@@ -124,6 +136,10 @@
 		<TextField bind:value={form.ssid} label="Name" placeholder="What devices see" maxlength={32} />
 
 		<Select bind:value={form.security} options={securityOptions} label="Security" />
+
+		{#if networkOptions.length > 1}
+			<Select bind:value={form.network} options={networkOptions} label="Devices join" />
+		{/if}
 
 		{#if needsPassword}
 			<TextField

@@ -3,6 +3,8 @@ mod config;
 mod devices;
 mod http;
 mod monitor;
+mod networks;
+mod secret;
 mod state;
 mod ubus;
 mod wifi;
@@ -40,6 +42,9 @@ impl Args {
 async fn main() {
 	let args = Args::parse();
 	let state = AppState::load().await;
+	if let Err(err) = networks::adopt(&state.ubus).await {
+		eprintln!("cowrtd: could not set up the network layout: {err}");
+	}
 	monitor::spawn(state.clone());
 
 	let listener = tokio::net::TcpListener::bind(args.listen)

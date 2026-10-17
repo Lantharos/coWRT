@@ -1,4 +1,4 @@
 mod apply;
 pub mod uci;
 
-pub use apply::{Applied, Applier};
+pub use apply::{Applied, Applier, reload};
