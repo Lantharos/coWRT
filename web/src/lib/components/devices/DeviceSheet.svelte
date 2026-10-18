@@ -5,11 +5,14 @@
 	import type { Device } from '#lib/api/types.js';
 	import { bandLabel, bits, bytes, joined, linkRate } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
+	import AreaChart from '#lib/components/charts/AreaChart.svelte';
 	import Facts from '#lib/components/ui/Facts.svelte';
+	import Select from '#lib/components/ui/controls/Select.svelte';
+	import Setting from '#lib/components/ui/Setting.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import TextField from '#lib/components/ui/TextField.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import TextField from '#lib/components/ui/controls/TextField.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import DeviceControls from './DeviceControls.svelte';
 	import { kinds, kindOf, type Kind } from './kinds';
 
@@ -94,32 +97,85 @@
 				class="-mx-2 w-full rounded-lg bg-transparent px-2 py-0.5 font-display text-2xl font-medium outline-none placeholder:text-fg hover:bg-raised focus:bg-raised"
 			/>
 			<p class="mt-1 text-sm {device.online ? 'text-accent' : 'text-faint'}">
-				{device.online ? 'Online' : 'Offline'}{#if device.isYou}&nbsp;· this is the device you're
-					using{/if}
+				{device.online ? 'Online' : 'Offline'}{#if device.isYou}<span class="text-muted">
+						· you're using this</span
+					>{/if}
 			</p>
 		{/if}
 	{/snippet}
 
 	{#if device}
 		<div class="flex flex-col gap-8">
-			<div class="grid grid-cols-3 gap-[3px] overflow-hidden rounded-[16px]">
-				{@render figure('Download', joined(bits(device.usage.down)))}
-				{@render figure('Upload', joined(bits(device.usage.up)))}
-				{@render figure('Today', joined(bytes(device.usage.todayDown + device.usage.todayUp)))}
+			<div class="flex flex-col gap-3">
+				<div class="flex items-baseline justify-between text-[14px]">
+					<span>
+						<span class="font-display text-2xl"
+							>{joined(bits(device.usage.down + device.usage.up))}</span
+						>
+						<span class="text-muted">right now</span>
+					</span>
+					<span class="text-muted"
+						>{joined(bytes(device.usage.todayDown + device.usage.todayUp))} today</span
+					>
+				</div>
+				<AreaChart
+					values={device.usage.recent}
+					max={Math.max(200_000, ...device.usage.recent) * 1.15}
+					height={56}
+				/>
+				{#if connection?.kind === 'wifi'}
+					<div class="flex gap-2">
+						<Button size="sm" onclick={() => disconnect(0)} busy={saving === 'disconnect'}>
+							<Unplug size={15} /> Disconnect
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							onclick={() => disconnect(60)}
+							busy={saving === 'block'}
+						>
+							<Ban size={15} /> Block for an hour
+						</Button>
+					</div>
+				{/if}
 			</div>
 
-			{#if connection?.kind === 'wifi'}
-				<div class="grid grid-cols-2 gap-2">
-					<Button onclick={() => disconnect(0)} busy={saving === 'disconnect'}>
-						<Unplug size={16} /> Disconnect
-					</Button>
-					<Button variant="danger" onclick={() => disconnect(60)} busy={saving === 'block'}>
-						<Ban size={16} /> Block for 1 hour
-					</Button>
-				</div>
-			{/if}
-
 			<DeviceControls {device} {onchange} />
+
+			<div class="flex flex-col">
+				<Setting title="Type">
+					<div class="w-44">
+						<Select
+							value={kind}
+							options={Object.entries(kinds).map(([value, item]) => ({
+								value: value as Kind,
+								label: item.label
+							}))}
+							onchange={saveKind}
+						/>
+					</div>
+				</Setting>
+				<Setting title="Reserve address" hint="Always hand out the same IP">
+					<Toggle bind:checked={reserve} label="Reserve address" />
+				</Setting>
+				{#if reserve}
+					<TextField
+						bind:value={reservedIp}
+						placeholder="10.0.0.50"
+						aria-label="Reserved address"
+					/>
+				{/if}
+				{#if reserve !== (device.reservedIp !== null) || (reserve && reservedIp !== device.reservedIp)}
+					<Button
+						variant="primary"
+						class="mt-3"
+						onclick={saveReservation}
+						busy={saving === 'reservation'}
+					>
+						Save reservation
+					</Button>
+				{/if}
+			</div>
 
 			<Facts
 				facts={[
@@ -147,54 +203,6 @@
 							])
 				]}
 			/>
-
-			<div class="flex flex-col gap-3">
-				<h3 class="text-[15px] font-medium">Type</h3>
-				<div class="grid grid-cols-4 gap-1.5">
-					{#each Object.entries(kinds) as [key, item] (key)}
-						<button
-							type="button"
-							onclick={() => saveKind(key as Kind)}
-							class="flex cursor-pointer flex-col items-center gap-1.5 rounded-control px-1 py-3 text-xs transition-colors {kind ===
-							key
-								? 'bg-accent-soft text-accent'
-								: 'bg-raised text-muted hover:text-fg'}"
-						>
-							<item.icon size={18} />
-							{item.label}
-						</button>
-					{/each}
-				</div>
-			</div>
-
-			<div class="flex flex-col gap-4 rounded-[18px] bg-raised/60 p-4">
-				<div class="flex items-center justify-between gap-4">
-					<div>
-						<h3 class="text-[15px] font-medium">Reserve address</h3>
-						<p class="text-[13px] text-muted">Always hand this device the same IP.</p>
-					</div>
-					<Toggle bind:checked={reserve} label="Reserve address" />
-				</div>
-				{#if reserve}
-					<TextField
-						bind:value={reservedIp}
-						placeholder="192.168.1.50"
-						aria-label="Reserved address"
-					/>
-				{/if}
-				{#if reserve !== (device.reservedIp !== null) || (reserve && reservedIp !== device.reservedIp)}
-					<Button variant="primary" onclick={saveReservation} busy={saving === 'reservation'}>
-						Save reservation
-					</Button>
-				{/if}
-			</div>
 		</div>
 	{/if}
 </Sheet>
-
-{#snippet figure(label: string, value: string)}
-	<div class="flex flex-col gap-0.5 bg-raised px-4 py-3">
-		<span class="font-display text-lg">{value}</span>
-		<span class="text-[12px] text-muted">{label}</span>
-	</div>
-{/snippet}

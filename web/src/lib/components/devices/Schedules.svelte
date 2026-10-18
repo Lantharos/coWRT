@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Plus, X } from '@lucide/svelte';
 	import type { Day, Schedule } from '#lib/api/types.js';
-	import Button from '#lib/components/ui/Button.svelte';
-	import TextField from '#lib/components/ui/TextField.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
+	import TextField from '#lib/components/ui/controls/TextField.svelte';
 
 	type Props = { schedules: Schedule[]; busy: boolean; onsave: (schedules: Schedule[]) => void };
 	let { schedules, busy, onsave }: Props = $props();

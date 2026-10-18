@@ -1,7 +1,7 @@
 import type { NetworkColor } from '#lib/api/types.js';
 
 export const networkColors: Record<NetworkColor, string> = {
-	green: '#34a853',
+	green: 'var(--color-accent)',
 	blue: '#4c8dff',
 	purple: '#a477f2',
 	orange: '#ee8a3c',

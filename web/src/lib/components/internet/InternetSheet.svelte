@@ -10,13 +10,13 @@
 		InternetOverview
 	} from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
-	import Segmented from '#lib/components/ui/Segmented.svelte';
-	import Select from '#lib/components/ui/Select.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
+	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
+	import Select from '#lib/components/ui/controls/Select.svelte';
 	import Setting from '#lib/components/ui/Setting.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import TextField from '#lib/components/ui/TextField.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import TextField from '#lib/components/ui/controls/TextField.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 
 	type Props = {
 		settings: InternetOverview | null;

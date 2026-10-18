@@ -1,4 +1,4 @@
-// Captures every page of a running router: bun scripts/screenshots.ts [page ...]
+// Captures pages of a running router: bun scripts/screenshots.ts [page | page>row title ...]
 import { chromium } from 'playwright';
 
 const base = process.env.COWRT_ROUTER ?? 'http://127.0.0.1:18080';
@@ -20,11 +20,20 @@ for (const [label, viewport] of Object.entries(viewports)) {
 	await page.fill('input[type=password]', password);
 	await page.press('input[type=password]', 'Enter');
 	await page.waitForURL(`${base}/`);
-	for (const name of wanted) {
+	for (const target of wanted) {
+		const [name, row] = target.split('>');
 		await page.goto(`${base}/${name === 'overview' ? '' : name}`);
 		await page.waitForLoadState('networkidle').catch(() => {});
 		await page.waitForTimeout(2500);
-		await page.screenshot({ path: `${out}${name}-${label}.png`, fullPage: true });
+		if (row) {
+			await page.getByRole('button', { name: row }).first().click();
+			await page.waitForTimeout(800);
+		}
+		const file = target
+			.replace('>', '-')
+			.replace(/[^a-z0-9-]+/gi, '-')
+			.toLowerCase();
+		await page.screenshot({ path: `${out}${file}-${label}.png`, fullPage: !row });
 	}
 	await context.close();
 }

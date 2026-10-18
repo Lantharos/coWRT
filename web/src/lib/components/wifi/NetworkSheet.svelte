@@ -12,12 +12,13 @@
 	} from '#lib/api/types.js';
 	import { bandLabel } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
-	import Segmented from '#lib/components/ui/Segmented.svelte';
-	import Select from '#lib/components/ui/Select.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
+	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
+	import Select from '#lib/components/ui/controls/Select.svelte';
+	import Setting from '#lib/components/ui/Setting.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import TextField from '#lib/components/ui/TextField.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import TextField from '#lib/components/ui/controls/TextField.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 
 	type Props = {
 		network: WifiNetwork | 'new' | null;
@@ -161,14 +162,16 @@
 			/>
 		{/if}
 
-		<div class="flex flex-col gap-5 pt-2">
-			{@render option('Turned on', 'Broadcast this network.', 'enabled')}
-			{@render option('Hidden', 'Devices have to type the name to join.', 'hidden')}
-			{@render option(
-				'Keep devices apart',
-				'Devices can reach the internet but not each other.',
-				'isolate'
-			)}
+		<div class="flex flex-col">
+			<Setting title="Turned on">
+				<Toggle bind:checked={form.enabled} label="Turned on" />
+			</Setting>
+			<Setting title="Hidden" hint="Join by typing the name">
+				<Toggle bind:checked={form.hidden} label="Hidden" />
+			</Setting>
+			<Setting title="Keep devices apart" hint="Internet only, no device-to-device">
+				<Toggle bind:checked={form.isolate} label="Keep devices apart" />
+			</Setting>
 		</div>
 	</div>
 
@@ -195,13 +198,3 @@
 		</Button>
 	{/snippet}
 </Sheet>
-
-{#snippet option(title: string, description: string, key: 'enabled' | 'hidden' | 'isolate')}
-	<div class="flex items-center justify-between gap-6">
-		<div>
-			<p class="text-[15px]">{title}</p>
-			<p class="text-[13px] text-muted">{description}</p>
-		</div>
-		<Toggle bind:checked={form[key]} label={title} />
-	</div>
-{/snippet}

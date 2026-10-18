@@ -4,9 +4,9 @@
 	import { api } from '#lib/api/client.js';
 	import type { VpnPeer } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 
 	type Props = { peer: VpnPeer | null; onclose: () => void; onsaved: () => void };
 	let { peer, onclose, onsaved }: Props = $props();

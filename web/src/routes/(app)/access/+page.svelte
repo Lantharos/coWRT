@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Plus } from '@lucide/svelte';
+	import { ArrowRightLeft, AtSign, Gamepad2, KeyRound, Plus, Route } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { poll } from '#lib/api/poll.svelte.js';
 	import type {
@@ -14,11 +14,11 @@
 	import ForwardSheet from '#lib/components/access/ForwardSheet.svelte';
 	import ProviderSheet from '#lib/components/access/ProviderSheet.svelte';
 	import VpnSheet from '#lib/components/access/VpnSheet.svelte';
-	import Button from '#lib/components/ui/Button.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
 	import List from '#lib/components/ui/List.svelte';
 	import PageHeader from '#lib/components/ui/PageHeader.svelte';
 	import Row from '#lib/components/ui/Row.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 
 	type Panel = 'vpn' | 'provider' | 'address';
 
@@ -40,10 +40,18 @@
 	);
 	const protocolLabel = { tcp: 'TCP', udp: 'UDP', both: 'TCP and UDP' };
 
+	const on = 'var(--color-accent)';
+	const connected = $derived(
+		(vpn.data?.server.peers ?? []).filter(
+			(p) => p.status.handshake && Date.now() / 1000 - p.status.handshake < 180
+		).length
+	);
+
 	const open = $derived(reachable ?? (reach ? !reach.behindNat : null));
 	const vpnValue = $derived.by(() => {
 		const server = vpn.data?.server;
 		if (!server?.enabled) return 'Off';
+		if (connected) return `${connected} connected`;
 		return `${server.peers.length} ${server.peers.length === 1 ? 'device' : 'devices'}`;
 	});
 	const providerValue = $derived.by(() => {
@@ -111,18 +119,24 @@
 	<List>
 		<Row
 			title="VPN"
+			icon={KeyRound}
+			tint={vpn.data?.server.enabled ? on : undefined}
 			detail="Reach home from your phone and laptop"
 			value={vpnValue}
 			onclick={() => (panel = 'vpn')}
 		/>
 		<Row
 			title="VPN provider"
+			icon={Route}
+			tint={vpn.data?.client.enabled ? on : undefined}
 			detail="Send whole networks through a VPN"
 			value={providerValue}
 			onclick={() => (panel = 'provider')}
 		/>
 		<Row
 			title="Your own address"
+			icon={AtSign}
+			tint={sharing.data?.ddns.enabled ? on : undefined}
 			detail="A hostname that always points home"
 			value={sharing.data?.ddns.enabled ? sharing.data.ddns.hostname : 'Off'}
 			onclick={() => (panel = 'address')}
@@ -138,6 +152,8 @@
 		{#each forwards as forward (forward.id)}
 			<Row
 				title={forward.name}
+				icon={ArrowRightLeft}
+				tint={forward.enabled ? on : undefined}
 				detail="{protocolLabel[forward.protocol]} {forward.external} to {deviceName(forward.mac)}"
 				dimmed={!forward.enabled}
 				onclick={() => (editing = forward.id)}
@@ -155,6 +171,8 @@
 		{#if sharing.data}
 			<Row
 				title="Let apps open ports"
+				icon={Gamepad2}
+				tint={sharing.data.upnp.enabled ? on : undefined}
 				detail={sharing.data.upnp.enabled && sharing.data.upnp.mappings.length
 					? `${sharing.data.upnp.mappings.length} open right now`
 					: 'UPnP and NAT-PMP, for games and consoles'}

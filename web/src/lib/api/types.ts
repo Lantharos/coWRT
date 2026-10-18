@@ -104,6 +104,7 @@ export interface DeviceUsage {
 	up: number;
 	todayDown: number;
 	todayUp: number;
+	recent: number[];
 }
 
 export type Security = 'wpa3' | 'wpa2-wpa3' | 'wpa2' | 'enhanced-open' | 'open';

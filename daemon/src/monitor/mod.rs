@@ -6,7 +6,7 @@ mod traffic;
 pub mod wan;
 mod watcher;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -24,6 +24,7 @@ use crate::state::{AppState, unix_now};
 
 const ACCOUNTING_SECS: u64 = 2;
 const SAVE_SECS: u64 = 3600;
+const RECENT_SAMPLES: usize = 45;
 
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,20 +51,28 @@ pub struct Throughput {
 	pub tx: u64,
 }
 
-#[derive(Clone, Copy, Default, Serialize)]
+#[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceUsage {
 	pub down: u64,
 	pub up: u64,
 	pub today_down: u64,
 	pub today_up: u64,
+	pub recent: Vec<u64>,
+}
+
+#[derive(Default)]
+struct Rate {
+	down: u64,
+	up: u64,
+	recent: VecDeque<u64>,
 }
 
 pub struct Monitor {
 	latest: watch::Sender<Snapshot>,
 	history: Mutex<Recorder>,
 	ledger: tokio::sync::Mutex<Ledger>,
-	rates: Mutex<HashMap<String, (u64, u64)>>,
+	rates: Mutex<HashMap<String, Rate>>,
 }
 
 impl Default for Monitor {
@@ -103,10 +112,11 @@ impl Monitor {
 				)
 			})
 			.collect();
-		for (mac, (down, up)) in rates.iter() {
+		for (mac, rate) in rates.iter() {
 			let entry = usage.entry(mac.clone()).or_default();
-			entry.down = *down;
-			entry.up = *up;
+			entry.down = rate.down;
+			entry.up = rate.up;
+			entry.recent = rate.recent.iter().copied().collect();
 		}
 		usage
 	}
@@ -129,12 +139,24 @@ async fn account(state: &AppState, accounting: &mut Accounting, wan_device: Opti
 	let Ok(Ok((flows, neighbors))) = gathered else { return };
 	let sample = accounting.sample(flows, &neighbors, wan_device.as_deref());
 	let mut ledger = state.monitor.ledger.lock().await;
-	let mut rates = HashMap::with_capacity(sample.per_device.len());
+	let mut rates = state.monitor.rates.lock().expect("rates lock poisoned");
+	for rate in rates.values_mut() {
+		rate.down = 0;
+		rate.up = 0;
+	}
 	for (mac, (down, up)) in sample.per_device {
 		ledger.add_device(&mac, down, up);
-		rates.insert(mac, (down * 8 / ACCOUNTING_SECS, up * 8 / ACCOUNTING_SECS));
+		let rate = rates.entry(mac).or_default();
+		rate.down = down * 8 / ACCOUNTING_SECS;
+		rate.up = up * 8 / ACCOUNTING_SECS;
 	}
-	*state.monitor.rates.lock().expect("rates lock poisoned") = rates;
+	rates.retain(|_, rate| {
+		if rate.recent.len() == RECENT_SAMPLES {
+			rate.recent.pop_front();
+		}
+		rate.recent.push_back(rate.down + rate.up);
+		rate.recent.iter().any(|&bits| bits > 0)
+	});
 }
 
 pub fn spawn(state: AppState) {

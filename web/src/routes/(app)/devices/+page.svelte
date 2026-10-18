@@ -1,23 +1,24 @@
 <script lang="ts">
 	import { Search } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
+	import { devices } from '#lib/api/devices.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
-	import type { Device, NetworksOverview } from '#lib/api/types.js';
+	import type { NetworksOverview } from '#lib/api/types.js';
 	import DeviceRow from '#lib/components/devices/DeviceRow.svelte';
 	import DeviceSheet from '#lib/components/devices/DeviceSheet.svelte';
 	import { networkColors } from '#lib/components/networks/colors.js';
 	import List from '#lib/components/ui/List.svelte';
 	import PageHeader from '#lib/components/ui/PageHeader.svelte';
 
-	const devices = poll(() => api.get<Device[]>('/devices'), 5000);
+	devices.use();
 	const networks = poll(() => api.get<NetworksOverview>('/networks'), 30000);
 
 	let query = $state('');
 	let selected = $state<string | null>(null);
 
+	const all = $derived(devices.list ?? []);
 	const matches = $derived.by(() => {
 		const needle = query.trim().toLowerCase();
-		const all = devices.data ?? [];
 		if (!needle) return all;
 		return all.filter((device) =>
 			[device.name, device.hostname, device.ipv4, device.mac].some((field) =>
@@ -33,7 +34,7 @@
 			.map((network) => ({
 				id: network.id,
 				label: network.name,
-				color: networkColors[network.color] as string | null,
+				color: networkColors[network.color] as string | undefined,
 				items: online.filter((d) => d.network === network.id)
 			}))
 			.filter((group) => group.items.length);
@@ -41,20 +42,22 @@
 		const offline = matches.filter((d) => !d.online);
 		return [
 			...byNetwork,
-			...(elsewhere.length ? [{ id: 'other', label: 'Other', color: null, items: elsewhere }] : []),
+			...(elsewhere.length
+				? [{ id: 'other', label: 'Other', color: undefined, items: elsewhere }]
+				: []),
 			...(offline.length
-				? [{ id: 'offline', label: 'Seen before', color: null, items: offline }]
+				? [{ id: 'offline', label: 'Seen before', color: undefined, items: offline }]
 				: [])
 		];
 	});
 
-	const online = $derived(devices.data?.filter((d) => d.online).length);
-	const offline = $derived(devices.data?.filter((d) => !d.online).length ?? 0);
+	const online = $derived(all.filter((d) => d.online).length);
+	const offline = $derived(all.length - online);
 </script>
 
-<PageHeader detail={offline ? `${offline} more seen recently.` : undefined}>
+<PageHeader detail={offline ? `And ${offline} more seen recently.` : undefined}>
 	{#snippet headline()}
-		{online ?? '–'}
+		{devices.list ? online : '–'}
 		{online === 1 ? 'device' : 'devices'} online
 	{/snippet}
 	{#snippet action()}
@@ -82,16 +85,16 @@
 				</span>
 			{/snippet}
 			{#each group.items as device (device.mac)}
-				<DeviceRow {device} onselect={(d) => (selected = d.mac)} />
+				<DeviceRow {device} tint={group.color} onselect={(d) => (selected = d.mac)} />
 			{/each}
 		</List>
 	{:else}
-		<p class="px-3 text-muted">{devices.data ? 'No devices match.' : 'Looking around…'}</p>
+		<p class="px-3 text-muted">{devices.list ? 'No devices match.' : 'Looking around…'}</p>
 	{/each}
 </div>
 
 <DeviceSheet
-	device={devices.data?.find((device) => device.mac === selected) ?? null}
+	device={all.find((device) => device.mac === selected) ?? null}
 	onclose={() => (selected = null)}
 	onchange={() => devices.refresh()}
 />

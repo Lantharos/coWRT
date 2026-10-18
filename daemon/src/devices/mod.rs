@@ -177,7 +177,7 @@ pub async fn inventory(
 		.into_values()
 		.map(|mut device| {
 			device.is_you = requester.is_some() && device.ipv4 == requester;
-			device.usage = usage.get(&device.mac).copied().unwrap_or_default();
+			device.usage = usage.get(&device.mac).cloned().unwrap_or_default();
 			device.network = device
 				.ipv4
 				.as_deref()

@@ -3,13 +3,13 @@
 	import { api } from '#lib/api/client.js';
 	import type { VpnPeer, VpnServer } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Row from '#lib/components/ui/Row.svelte';
-	import Select from '#lib/components/ui/Select.svelte';
+	import Select from '#lib/components/ui/controls/Select.svelte';
 	import Setting from '#lib/components/ui/Setting.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import TextField from '#lib/components/ui/TextField.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import TextField from '#lib/components/ui/controls/TextField.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import PeerSheet from './PeerSheet.svelte';
 
 	type Props = {

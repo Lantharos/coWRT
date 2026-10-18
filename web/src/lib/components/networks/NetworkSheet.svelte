@@ -5,11 +5,12 @@
 	import { applyChange } from '#lib/api/apply.js';
 	import type { Applied, Network, NetworkColor, NetworkInput } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
-	import Select from '#lib/components/ui/Select.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
+	import Select from '#lib/components/ui/controls/Select.svelte';
+	import Setting from '#lib/components/ui/Setting.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import TextField from '#lib/components/ui/TextField.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import TextField from '#lib/components/ui/controls/TextField.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import { networkColors } from './colors';
 
 	type Props = {
@@ -166,55 +167,40 @@
 			</div>
 		</div>
 
-		<div class="flex flex-col gap-5 pt-1">
-			{@render option(
-				'Internet access',
-				'Devices on this network can reach the internet.',
-				form.internet,
-				(on) => (form.internet = on)
-			)}
-			{@render option(
-				'Reach other networks',
-				primary
-					? 'Your main network can always reach everything, including this router.'
-					: 'Devices here can reach your other networks and manage this router. Leave off for guests and smart home gear.',
-				form.trusted || primary,
-				(on) => (form.trusted = on),
-				primary
-			)}
-		</div>
+		<TextField bind:value={form.address} label="Router address" placeholder="10.0.20.1/24" />
 
-		<TextField
-			bind:value={form.address}
-			label="Router address"
-			hint="The router's address on this network, with its size. 10.0.20.1/24 gives 254 devices."
-			placeholder="10.0.20.1/24"
-		/>
-
-		<div class="flex flex-col gap-4 rounded-[18px] bg-raised/60 p-4">
-			{@render option(
-				'Hand out addresses',
-				pool && form.dhcp.enabled ? `From ${pool}` : 'Devices need to be set up by hand.',
-				form.dhcp.enabled,
-				(on) => (form.dhcp.enabled = on)
-			)}
-			{#if form.dhcp.enabled}
-				<div class="grid grid-cols-2 gap-3">
-					<TextField bind:value={start} label="Starting at" inputmode="numeric" />
-					<TextField bind:value={limit} label="How many" inputmode="numeric" />
-				</div>
-				<Select
-					bind:value={form.dhcp.leaseTime}
-					options={leaseTimes}
-					label="Devices keep their address for"
+		<div class="flex flex-col">
+			<Setting title="Internet">
+				<Toggle bind:checked={form.internet} label="Internet" />
+			</Setting>
+			<Setting
+				title="Reach other networks"
+				hint={primary ? 'Always on for your main network' : 'Leave off for guests and gadgets'}
+			>
+				<Toggle
+					checked={form.trusted || primary}
+					label="Reach other networks"
+					disabled={primary}
+					onchange={(on) => (form.trusted = on)}
 				/>
-			{/if}
+			</Setting>
+			<Setting title="Hand out addresses" hint={pool && form.dhcp.enabled ? pool : undefined}>
+				<Toggle bind:checked={form.dhcp.enabled} label="Hand out addresses" />
+			</Setting>
 		</div>
+
+		{#if form.dhcp.enabled}
+			<div class="grid grid-cols-2 gap-3">
+				<TextField bind:value={start} label="First address" inputmode="numeric" />
+				<TextField bind:value={limit} label="How many" inputmode="numeric" />
+			</div>
+			<Select bind:value={form.dhcp.leaseTime} options={leaseTimes} label="Kept for" />
+		{/if}
 
 		<TextField
 			bind:value={vlan}
 			label="VLAN number"
-			hint="Only matters if you connect other switches or access points that carry several networks."
+			hint="For switches and access points that carry several networks"
 			inputmode="numeric"
 		/>
 	</div>
@@ -237,19 +223,3 @@
 		</Button>
 	{/snippet}
 </Sheet>
-
-{#snippet option(
-	title: string,
-	description: string,
-	checked: boolean,
-	onchange: (on: boolean) => void,
-	disabled = false
-)}
-	<div class="flex items-center justify-between gap-6">
-		<div>
-			<p class="text-[15px]">{title}</p>
-			<p class="text-[13px] text-muted">{description}</p>
-		</div>
-		<Toggle {checked} label={title} {onchange} {disabled} />
-	</div>
-{/snippet}

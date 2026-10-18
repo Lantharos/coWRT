@@ -5,9 +5,9 @@
 	import { applyChange } from '#lib/api/apply.js';
 	import type { Applied, Network, Port } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import { networkColors } from './colors';
 
 	type Props = {
@@ -72,11 +72,8 @@
 		{#if others.length}
 			<div class="flex flex-col gap-3">
 				<div>
-					<h3 class="text-[15px] font-medium">Also carry</h3>
-					<p class="text-[13px] text-muted">
-						For a switch or access point that understands VLANs. These networks travel over this
-						cable tagged with their VLAN number.
-					</p>
+					<h3 class="text-[15px]">Also carry</h3>
+					<p class="text-[13px] text-muted">Tagged, for switches and access points</p>
 				</div>
 				{#each others as option (option.id)}
 					<div class="flex items-center justify-between gap-4">

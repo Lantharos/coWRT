@@ -2,8 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { api, ApiError } from '#lib/api/client.js';
 	import Logo from '#lib/components/layout/Logo.svelte';
-	import Button from '#lib/components/ui/Button.svelte';
-	import TextField from '#lib/components/ui/TextField.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
+	import TextField from '#lib/components/ui/controls/TextField.svelte';
 
 	let password = $state('');
 	let error = $state<string | null>(null);

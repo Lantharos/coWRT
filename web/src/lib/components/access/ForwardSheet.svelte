@@ -4,11 +4,11 @@
 	import { api } from '#lib/api/client.js';
 	import type { Device, Forward, ForwardInput, ForwardProtocol } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
-	import Segmented from '#lib/components/ui/Segmented.svelte';
-	import Select from '#lib/components/ui/Select.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
+	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
+	import Select from '#lib/components/ui/controls/Select.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import TextField from '#lib/components/ui/TextField.svelte';
+	import TextField from '#lib/components/ui/controls/TextField.svelte';
 
 	type Props = {
 		forward: Forward | 'new' | null;

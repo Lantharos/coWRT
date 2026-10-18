@@ -1,6 +1,7 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import type { Component, Snippet } from 'svelte';
 	import { ChevronRight } from '@lucide/svelte';
+	import Sparkline from '#lib/components/charts/Sparkline.svelte';
 
 	type Props = {
 		title: string;
@@ -8,6 +9,10 @@
 		value?: string | null;
 		tone?: 'muted' | 'good' | 'bad';
 		dimmed?: boolean;
+		icon?: Component<{ size?: number }>;
+		graph?: number[];
+		graphMax?: number;
+		tint?: string;
 		leading?: Snippet;
 		trailing?: Snippet;
 		onclick?: () => void;
@@ -19,6 +24,10 @@
 		value,
 		tone = 'muted',
 		dimmed = false,
+		icon: Icon,
+		graph,
+		graphMax,
+		tint,
 		leading,
 		trailing,
 		onclick,
@@ -30,11 +39,25 @@
 </script>
 
 {#snippet body()}
+	{#if Icon}
+		<span
+			class="grid size-10 shrink-0 place-items-center rounded-[12px] {tint
+				? ''
+				: 'bg-surface'} {dimmed ? 'text-faint' : tint ? '' : 'text-fg'}"
+			style:background={tint ? `color-mix(in srgb, ${tint} 16%, transparent)` : undefined}
+			style:color={tint && !dimmed ? tint : undefined}
+		>
+			<Icon size={19} />
+		</span>
+	{/if}
 	{#if leading}<span class="flex shrink-0 items-center">{@render leading()}</span>{/if}
 	<span class="flex min-w-0 flex-1 flex-col">
 		<span class="truncate text-[16px] {dimmed ? 'text-muted' : 'text-fg'}">{title}</span>
 		{#if detail}<span class="truncate text-[14px] text-muted">{detail}</span>{/if}
 	</span>
+	{#if graph}
+		<span class="hidden sm:block"><Sparkline values={graph} color={tint} floor={graphMax} /></span>
+	{/if}
 	{#if value}
 		<span class="max-w-[45%] shrink-0 truncate text-right text-[15px] {toneClass[tone]}"
 			>{value}</span

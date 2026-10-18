@@ -4,11 +4,12 @@
 	import type { Radio, RadioInput } from '#lib/api/types.js';
 	import { bandLabel } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Button from '#lib/components/ui/Button.svelte';
-	import Segmented from '#lib/components/ui/Segmented.svelte';
-	import Select from '#lib/components/ui/Select.svelte';
+	import Button from '#lib/components/ui/controls/Button.svelte';
+	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
+	import Select from '#lib/components/ui/controls/Select.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import Setting from '#lib/components/ui/Setting.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import { countries } from './countries';
 
 	type Props = { radio: Radio | null; onclose: () => void; onsaved: () => void };
@@ -91,21 +92,15 @@
 
 <Sheet open={radio !== null} title="{radio ? bandLabel[radio.band] : ''} radio" {onclose}>
 	<div class="flex flex-col gap-6">
-		<div class="flex items-center justify-between gap-6">
-			<div>
-				<p class="text-[15px]">Turned on</p>
-				<p class="text-[13px] text-muted">Every network on this band goes quiet when it's off.</p>
-			</div>
+		<Setting title="Turned on">
 			<Toggle bind:checked={form.enabled} label="Radio on" />
-		</div>
+		</Setting>
 
 		<Select bind:value={form.channel} options={channels} label="Channel" />
 
 		{#if widths.length > 1 && width}
 			<Segmented bind:value={width} options={widths} label="Channel width" />
-			<p class="-mt-4 text-[13px] text-faint">
-				Wider is faster up close, narrower holds up better through walls and crowds.
-			</p>
+			<p class="-mt-4 text-[13px] text-faint">Narrower holds up better through walls.</p>
 		{/if}
 
 		<Segmented
