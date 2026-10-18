@@ -88,7 +88,7 @@ pub async fn sync(ubus: &Ubus) -> Result<(), ubus::Error> {
 			"name": format!("Allow {id} DHCP and DNS"),
 			"src": id,
 			"proto": ["tcp", "udp"],
-			"dest_port": ["53", "67", "68", "547"],
+			"dest_port": ["53", "67", "68", "547", "5301", "5302"],
 			"target": "ACCEPT",
 		});
 		uci::add(ubus, CONFIG, "rule", Some(&format!("{PREFIX}rule_{id}_services")), services).await?;

@@ -324,3 +324,14 @@ export interface VpnOverview {
 	server: VpnServer;
 	client: VpnProvider;
 }
+
+export type DnsProvider =
+	'off' | 'cloudflare' | 'quad9' | 'google' | 'mullvad' | 'adguard' | 'nextdns';
+
+export interface Protection {
+	ads: string[];
+	threats: string[];
+	allow: string[];
+	updated: number | null;
+	privateDns: { provider: DnsProvider; nextdns: string | null };
+}

@@ -20,7 +20,7 @@ fn kbytes(kbit: u32) -> u32 {
 	(kbit / 8).max(1)
 }
 
-pub fn render(policies: &[DevicePolicy], devices: &[String]) -> String {
+pub fn render(policies: &[DevicePolicy], devices: &[String], redirects: &[(String, u16)]) -> String {
 	let mut out = String::from("table inet cowrt\ndelete table inet cowrt\ntable netdev cowrt\ndelete table netdev cowrt\n");
 	let leaves_home = if devices.is_empty() {
 		String::new()
@@ -49,7 +49,18 @@ pub fn render(policies: &[DevicePolicy], devices: &[String]) -> String {
 		}
 	}
 	let _ = writeln!(out, "\t\tct mark & {MARK_MASK:#x} != 0 meta mark set ct mark");
-	out.push_str("\t}\n}\n");
+	out.push_str("\t}\n");
+	if !redirects.is_empty() {
+		out.push_str("\tchain dns {\n\t\ttype nat hook prerouting priority dstnat - 5; policy accept;\n");
+		for (device, port) in redirects {
+			let _ = writeln!(
+				out,
+				"\t\tiifname \"{device}\" meta l4proto {{ tcp, udp }} th dport 53 redirect to :{port}"
+			);
+		}
+		out.push_str("\t}\n");
+	}
+	out.push_str("}\n");
 
 	let limited: Vec<&DevicePolicy> = policies
 		.iter()

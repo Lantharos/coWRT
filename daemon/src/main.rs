@@ -11,6 +11,7 @@ mod networks;
 mod outbound;
 mod packages;
 mod policy;
+mod protection;
 mod qos;
 mod secret;
 mod state;
@@ -56,6 +57,7 @@ async fn main() {
 	}
 	monitor::spawn(state.clone());
 	ddns::spawn(state.clone());
+	protection::spawn(state.clone());
 
 	let listener = tokio::net::TcpListener::bind(args.listen)
 		.await

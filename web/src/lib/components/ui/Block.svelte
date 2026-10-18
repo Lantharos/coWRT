@@ -12,11 +12,13 @@
 </script>
 
 <div class="bg-surface px-6 py-5 {className}">
-	{#if title}
+	{#if title || description}
 		<div class="flex items-center justify-between gap-6" class:mb-4={children}>
 			<div class="min-w-0">
-				<h3 class="text-[17px] font-medium">{title}</h3>
-				{#if description}<p class="mt-0.5 text-sm text-muted">{description}</p>{/if}
+				{#if title}<h3 class="text-[17px] font-medium">{title}</h3>{/if}
+				{#if description}
+					<p class="text-sm text-muted" class:mt-0.5={title}>{description}</p>
+				{/if}
 			</div>
 			{#if aside}{@render aside()}{/if}
 		</div>

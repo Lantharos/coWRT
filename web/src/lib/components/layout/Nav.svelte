@@ -1,7 +1,16 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { Cpu, Gauge, Globe, LogOut, MonitorSmartphone, Network, Wifi } from '@lucide/svelte';
+	import {
+		Cpu,
+		Gauge,
+		Globe,
+		LogOut,
+		MonitorSmartphone,
+		Network,
+		Shield,
+		Wifi
+	} from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import Logo from './Logo.svelte';
@@ -12,6 +21,7 @@
 		{ href: '/wifi', label: 'Wi-Fi', icon: Wifi },
 		{ href: '/networks', label: 'Networks', icon: Network },
 		{ href: '/access', label: 'Access', icon: Globe },
+		{ href: '/security', label: 'Security', icon: Shield },
 		{ href: '/system', label: 'System', icon: Cpu }
 	];
 

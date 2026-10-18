@@ -2,6 +2,7 @@ pub mod devices;
 mod internet;
 mod live;
 mod networks;
+mod protection;
 mod sharing;
 mod system;
 mod vpn;
@@ -29,6 +30,8 @@ pub fn routes() -> Router<AppState> {
 		.route("/forwards/check", post(sharing::check))
 		.route("/upnp", put(sharing::set_upnp))
 		.route("/ddns", put(sharing::set_ddns))
+		.route("/protection", get(protection::overview).put(protection::update))
+		.route("/protection/dns", put(protection::update_dns))
 		.route("/vpn", get(vpn::overview))
 		.route("/vpn/server", put(vpn::update_server))
 		.route("/vpn/server/peers", post(vpn::add_peer))
