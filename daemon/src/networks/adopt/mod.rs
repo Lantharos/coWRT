@@ -1,3 +1,5 @@
+mod import;
+
 use std::net::Ipv4Addr;
 
 use serde_json::json;
@@ -57,22 +59,13 @@ async fn ensure_bridge(ubus: &Ubus, layout: &Layout) -> Result<String, ubus::Err
 	Ok(DEFAULT_BRIDGE.to_owned())
 }
 
-async fn retire_stock_firewall(ubus: &Ubus) -> Result<(), ubus::Error> {
-	for section in uci::sections(ubus, "firewall").await? {
-		let stock_zone = section.kind == "zone" && section.get("name") == Some(PRIMARY);
-		let stock_forwarding = section.kind == "forwarding" && section.get("src") == Some(PRIMARY);
-		if stock_zone || stock_forwarding {
-			uci::delete(ubus, "firewall", &section.name).await?;
-		}
-	}
-	Ok(())
-}
-
 async fn convert(ubus: &Ubus) -> Result<(), ubus::Error> {
 	let layout = Layout::load(ubus).await?;
 	let Some(lan) = layout.interface(PRIMARY) else {
 		return Ok(());
 	};
+	let firewall = uci::sections(ubus, "firewall").await?;
+	let existing = import::existing(&layout, &firewall);
 	let ports = layout.bridge_ports();
 	let ports = if ports.is_empty() {
 		lan.get("device").map(str::to_owned).into_iter().collect()
@@ -98,9 +91,15 @@ async fn convert(ubus: &Ubus) -> Result<(), ubus::Error> {
 		uci::set(ubus, "network", PRIMARY, json!({ "ipaddr": [address.to_string()] })).await?;
 	}
 
-	retire_stock_firewall(ubus).await?;
 	let network = json!({ "name": "Home", "color": "green", "trusted": "1", "internet": "1" });
 	uci::add(ubus, "cowrt", "network", Some(PRIMARY), network).await?;
+	for (index, (network, vlan)) in existing.iter().zip(import::vlans(existing.len())).enumerate() {
+		import::move_into_bridge(ubus, network, vlan, index).await?;
+	}
+	let ids: Vec<&str> = std::iter::once(PRIMARY)
+		.chain(existing.iter().map(|n| n.id.as_str()))
+		.collect();
+	import::retire_zones(ubus, &firewall, &ids).await?;
 	firewall::sync(ubus).await?;
 	Ok(())
 }
