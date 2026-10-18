@@ -9,6 +9,11 @@
 	import Block from '#lib/components/ui/Block.svelte';
 	import Facts from '#lib/components/ui/Facts.svelte';
 	import Section from '#lib/components/ui/Section.svelte';
+	import Logs from '#lib/components/system/Logs.svelte';
+	import Maintenance from '#lib/components/system/Maintenance.svelte';
+	import Password from '#lib/components/system/Password.svelte';
+	import RouterSettings from '#lib/components/system/RouterSettings.svelte';
+	import Updates from '#lib/components/system/Updates.svelte';
 
 	const system = poll(() => api.get<SystemInfo>('/system'), 60000);
 	const history = poll(() => api.get<History>('/system/history'), 60000);
@@ -87,6 +92,22 @@
 			]}
 		/>
 	</Block>
+	{#if system.data}
+		<RouterSettings system={system.data} onsaved={() => system.refresh()} />
+	{/if}
+</Section>
+
+<Section title="Upkeep">
+	<Updates current={system.data?.cowrt ?? ''} />
+	<Maintenance />
+</Section>
+
+<Section title="Sign in">
+	<Password />
+</Section>
+
+<Section title="Log">
+	<Logs />
 </Section>
 
 {#snippet cpuValue()}

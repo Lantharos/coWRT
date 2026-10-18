@@ -180,8 +180,26 @@ pub async fn apply(ubus: &Ubus) -> std::io::Result<()> {
 	policy::apply(ubus).await
 }
 
+async fn reap_strays() {
+	let marker = format!("--conf-file={RUNTIME_DIR}/dns/");
+	let Ok(mut entries) = tokio::fs::read_dir("/proc").await else {
+		return;
+	};
+	while let Ok(Some(entry)) = entries.next_entry().await {
+		let Ok(pid) = entry.file_name().to_string_lossy().parse::<i32>() else {
+			continue;
+		};
+		let cmdline = tokio::fs::read(entry.path().join("cmdline")).await.unwrap_or_default();
+		if String::from_utf8_lossy(&cmdline).contains(&marker) {
+			unsafe { libc::kill(pid, libc::SIGTERM) };
+		}
+	}
+	tokio::time::sleep(Duration::from_millis(300)).await;
+}
+
 pub fn spawn(state: AppState) {
 	tokio::spawn(async move {
+		reap_strays().await;
 		if let Err(err) = apply(&state.ubus).await {
 			eprintln!("cowrtd: could not start DNS protection: {err}");
 		}

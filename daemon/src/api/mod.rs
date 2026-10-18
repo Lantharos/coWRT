@@ -15,10 +15,26 @@ use axum::routing::{get, post, put};
 use crate::http::ApiError;
 use crate::state::AppState;
 
+const UPLOAD_LIMIT: usize = 128 * 1024 * 1024;
+
 pub fn routes() -> Router<AppState> {
 	Router::new()
 		.route("/system", get(system::info))
 		.route("/system/history", get(system::history))
+		.route("/system/settings", put(system::update_settings))
+		.route("/system/password", put(system::password))
+		.route("/system/reboot", post(system::reboot))
+		.route("/system/logs", get(system::logs))
+		.route("/system/backup", get(system::backup))
+		.route("/system/update", get(system::check_update).post(system::install_update))
+		.route(
+			"/system/restore",
+			post(system::restore).layer(axum::extract::DefaultBodyLimit::max(UPLOAD_LIMIT)),
+		)
+		.route(
+			"/system/firmware",
+			post(system::firmware).layer(axum::extract::DefaultBodyLimit::max(UPLOAD_LIMIT)),
+		)
 		.route("/live", get(live::socket))
 		.route("/internet", get(internet::overview))
 		.route("/internet/connection", put(internet::update_connection))

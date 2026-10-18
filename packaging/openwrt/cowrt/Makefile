@@ -33,12 +33,13 @@ define Build/Compile
 endef
 
 define Package/cowrt/install
-	$(INSTALL_DIR) $(1)/usr/sbin $(1)/usr/share/cowrt $(1)/etc/init.d $(1)/etc/config $(1)/etc/uci-defaults
+	$(INSTALL_DIR) $(1)/usr/sbin $(1)/usr/share/cowrt $(1)/etc/init.d $(1)/etc/config $(1)/etc/uci-defaults $(1)/lib/upgrade/keep.d
 	$(INSTALL_BIN) $(COWRT_STAGE)/cowrtd $(1)/usr/sbin/cowrtd
 	$(CP) $(COWRT_STAGE)/www $(1)/usr/share/cowrt/
 	$(INSTALL_BIN) ./files/cowrtd.init $(1)/etc/init.d/cowrtd
 	$(INSTALL_CONF) ./files/cowrt.config $(1)/etc/config/cowrt
 	$(INSTALL_BIN) ./files/cowrt.defaults $(1)/etc/uci-defaults/90-cowrt
+	$(INSTALL_DATA) ./files/cowrt.keep $(1)/lib/upgrade/keep.d/cowrt
 endef
 
 define Package/cowrt/postinst

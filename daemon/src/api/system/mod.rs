@@ -1,3 +1,13 @@
+mod backup;
+mod logs;
+mod settings;
+mod update;
+
+pub use backup::{backup, firmware, restore};
+pub use logs::logs;
+pub use settings::{password, reboot, update_settings};
+pub use update::{check_update, install_update};
+
 use axum::Json;
 use axum::extract::State;
 use serde::{Deserialize, Serialize};
@@ -34,6 +44,7 @@ pub struct SystemInfo {
 	revision: String,
 	target: String,
 	cowrt: &'static str,
+	zonename: Option<String>,
 	storage: Storage,
 	local_time: i64,
 }
@@ -62,6 +73,10 @@ pub async fn info(State(state): State<AppState>) -> ApiResult<SystemInfo> {
 		revision: board.release.revision,
 		target: board.release.target,
 		cowrt: env!("CARGO_PKG_VERSION"),
+		zonename: crate::config::uci::sections_of(&state.ubus, "system", "system")
+			.await?
+			.first()
+			.and_then(|s| s.get("zonename").map(str::to_owned)),
 		storage: Storage {
 			used: kib("used"),
 			total: kib("total"),

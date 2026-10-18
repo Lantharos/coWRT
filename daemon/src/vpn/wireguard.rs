@@ -43,7 +43,7 @@ pub async fn ensure_installed(ubus: &Ubus) -> io::Result<()> {
 	if netifd_knows_wireguard(ubus).await {
 		return Ok(());
 	}
-	ubus.call("network", "restart", json!({})).await.map_err(io::Error::other)?;
+	Command::new("/etc/init.d/network").arg("restart").status().await?;
 	for _ in 0..20 {
 		tokio::time::sleep(Duration::from_millis(500)).await;
 		if netifd_knows_wireguard(ubus).await {

@@ -45,6 +45,7 @@ export interface SystemInfo {
 	revision: string;
 	target: string;
 	cowrt: string;
+	zonename: string | null;
 	storage: { used: number; total: number };
 	localTime: number;
 }
@@ -334,4 +335,17 @@ export interface Protection {
 	allow: string[];
 	updated: number | null;
 	privateDns: { provider: DnsProvider; nextdns: string | null };
+}
+
+export interface UpdateInfo {
+	current: string;
+	latest: string;
+	notes: string | null;
+	available: boolean;
+}
+
+export interface LogEntry {
+	time: number;
+	level: 'error' | 'warning' | 'info' | 'debug';
+	message: string;
 }

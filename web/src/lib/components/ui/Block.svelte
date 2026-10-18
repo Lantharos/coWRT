@@ -13,7 +13,7 @@
 
 <div class="bg-surface px-6 py-5 {className}">
 	{#if title || description}
-		<div class="flex items-center justify-between gap-6" class:mb-4={children}>
+		<div class="flex items-center justify-between gap-6 [&:not(:last-child)]:mb-4">
 			<div class="min-w-0">
 				{#if title}<h3 class="text-[17px] font-medium">{title}</h3>{/if}
 				{#if description}
