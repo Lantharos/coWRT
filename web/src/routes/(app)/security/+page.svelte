@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { ListChecks, Lock, Shield, ShieldCheck, ShieldOff } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
+	import { opened } from '#lib/opened.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
 	import type { NetworksOverview, Protection } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import { networkColors } from '#lib/components/networks/colors.js';
+	import { palette } from '#lib/palette.js';
 	import AllowSheet from '#lib/components/security/AllowSheet.svelte';
 	import BlockingSheet from '#lib/components/security/BlockingSheet.svelte';
 	import DnsSheet from '#lib/components/security/DnsSheet.svelte';
@@ -19,6 +20,8 @@
 
 	let choosing = $state<string | null>(null);
 	let panel = $state<'allow' | 'dns' | null>(null);
+
+	opened('open', (value) => (panel = value as 'allow' | 'dns'));
 	let busy = $state(false);
 
 	const all = $derived(networks.data?.networks ?? []);
@@ -97,7 +100,7 @@
 			<Row
 				title={network.name}
 				icon={levelIcon[current]}
-				tint={current === 'off' ? undefined : networkColors[network.color]}
+				tint={current === 'off' ? undefined : palette[network.color]}
 				value={levelLabel[current]}
 				onclick={() => (choosing = network.id)}
 			/>

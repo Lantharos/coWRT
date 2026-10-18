@@ -1,11 +1,17 @@
 <script lang="ts">
-	import type { Device } from '#lib/api/types.js';
+	import type { Device, Person } from '#lib/api/types.js';
 	import { bandLabel, bits, joined } from '#lib/format.js';
 	import Row from '#lib/components/ui/Row.svelte';
 	import { kinds, kindOf } from './kinds';
+	import { isWeak } from './signal';
 
-	type Props = { device: Device; tint?: string; onselect: (device: Device) => void };
-	let { device, tint, onselect }: Props = $props();
+	type Props = {
+		device: Device;
+		owner?: Person;
+		tint?: string;
+		onselect: (device: Device) => void;
+	};
+	let { device, owner, tint, onselect }: Props = $props();
 
 	const detail = $derived.by(() => {
 		const connection = device.connection;
@@ -15,10 +21,11 @@
 				: connection.kind === 'wired'
 					? 'Cable'
 					: 'Offline';
-		return [device.ipv4, where].filter(Boolean).join(' · ');
+		const weak = connection.kind === 'wifi' && isWeak(device.signals) ? 'weak signal' : null;
+		return [owner?.name, device.ipv4, where, weak].filter(Boolean).join(' · ');
 	});
 	const value = $derived.by(() => {
-		if (device.controls.blocked) return { text: 'Paused', tone: 'bad' as const };
+		if (device.controls.blocked || owner?.blocked) return { text: 'Paused', tone: 'bad' as const };
 		if (!device.online) return null;
 		return { text: joined(bits(device.usage.down + device.usage.up)), tone: 'muted' as const };
 	});

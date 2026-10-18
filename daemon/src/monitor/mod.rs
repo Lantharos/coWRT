@@ -25,6 +25,7 @@ use crate::state::{AppState, unix_now};
 const ACCOUNTING_SECS: u64 = 2;
 const SAVE_SECS: u64 = 3600;
 const RECENT_SAMPLES: usize = 45;
+const SIGNAL_SAMPLES: usize = 90;
 
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +74,7 @@ pub struct Monitor {
 	history: Mutex<Recorder>,
 	ledger: tokio::sync::Mutex<Ledger>,
 	rates: Mutex<HashMap<String, Rate>>,
+	signals: Mutex<HashMap<String, VecDeque<i64>>>,
 }
 
 impl Default for Monitor {
@@ -82,6 +84,7 @@ impl Default for Monitor {
 			history: Mutex::default(),
 			ledger: tokio::sync::Mutex::default(),
 			rates: Mutex::default(),
+			signals: Mutex::default(),
 		}
 	}
 }
@@ -121,6 +124,15 @@ impl Monitor {
 		usage
 	}
 
+	pub fn signals(&self) -> HashMap<String, Vec<i64>> {
+		self.signals
+			.lock()
+			.expect("signals lock poisoned")
+			.iter()
+			.map(|(mac, samples)| (mac.clone(), samples.iter().copied().collect()))
+			.collect()
+	}
+
 	pub async fn save(&self) {
 		self.ledger.lock().await.save().await;
 	}
@@ -133,7 +145,10 @@ async fn uptime() -> u64 {
 
 async fn account(state: &AppState, accounting: &mut Accounting, wan_device: Option<String>) {
 	let gathered = tokio::task::spawn_blocking(|| {
-		Ok::<_, std::io::Error>((crate::netlink::conntrack::flows()?, crate::netlink::neighbors::list()?))
+		Ok::<_, std::io::Error>((
+			crate::platform::netlink::conntrack::flows()?,
+			crate::platform::netlink::neighbors::list()?,
+		))
 	})
 	.await;
 	let Ok(Ok((flows, neighbors))) = gathered else { return };
@@ -159,6 +174,20 @@ async fn account(state: &AppState, accounting: &mut Accounting, wan_device: Opti
 	});
 }
 
+async fn record_signals(state: &AppState) {
+	let clients = crate::devices::sources::wifi_clients(&state.ubus).await;
+	let mut signals = state.monitor.signals.lock().expect("signals lock poisoned");
+	signals.retain(|mac, _| clients.iter().any(|client| &client.mac == mac));
+	for client in clients {
+		let Some(signal) = client.signal else { continue };
+		let samples = signals.entry(client.mac).or_default();
+		if samples.len() == SIGNAL_SAMPLES {
+			samples.pop_front();
+		}
+		samples.push_back(signal);
+	}
+}
+
 pub fn spawn(state: AppState) {
 	let internet = connectivity::spawn();
 	tokio::spawn(async move {
@@ -178,6 +207,10 @@ pub fn spawn(state: AppState) {
 			if tick.is_multiple_of(10) {
 				wan = Wan::read(&state.ubus).await;
 				watcher.check(&state, wan.device.as_deref()).await;
+				record_signals(&state).await;
+			}
+			if tick % 60 == 30 {
+				crate::wifi::turn_off_expired(&state).await;
 			}
 			if tick.is_multiple_of(60) {
 				utc_offset = wan::utc_offset(&state.ubus).await.unwrap_or(utc_offset);

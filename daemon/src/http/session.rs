@@ -50,7 +50,7 @@ impl Sessions {
 	}
 
 	pub async fn create(&self) -> String {
-		let token = crate::secret::token();
+		let token = crate::system::secret::token();
 		let now = unix_now();
 		let mut tokens = self.tokens.lock().await;
 		tokens.retain(|_, expires| *expires > now);

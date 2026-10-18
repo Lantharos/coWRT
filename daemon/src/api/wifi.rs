@@ -1,10 +1,10 @@
 use axum::Json;
 use axum::extract::{Path, State};
 
-use crate::config::Applied;
-use crate::http::ApiResult;
+use crate::http::{ApiError, ApiResult};
+use crate::platform::config::Applied;
 use crate::state::AppState;
-use crate::wifi::{self, NetworkInput, Overview, RadioInput};
+use crate::wifi::{self, NetworkInput, Overview, RadioInput, Roaming, Scan};
 
 const CONFIG: &[&str] = &["wireless"];
 
@@ -55,5 +55,26 @@ pub async fn update_radio(
 			wifi::update_radio(ubus, &name, &input).await
 		})
 		.await?;
+	Ok(Json(applied))
+}
+
+pub async fn scan(State(state): State<AppState>, Path(name): Path<String>) -> ApiResult<Scan> {
+	let overview = wifi::overview(&state.ubus).await?;
+	let radio = overview
+		.radios
+		.iter()
+		.find(|radio| radio.name == name)
+		.ok_or_else(|| ApiError::not_found("That radio doesn't exist"))?;
+	Ok(Json(wifi::scan(&state.ubus, &name, &radio.channels).await?))
+}
+
+pub async fn update_roaming(State(state): State<AppState>, Json(input): Json<Roaming>) -> ApiResult<Applied> {
+	let applied = state
+		.applier
+		.apply(&state.ubus, &["wireless", "cowrt"], None, async |ubus| {
+			wifi::roaming::store(ubus, input).await
+		})
+		.await?;
+	wifi::roaming::steer(input.steering).await?;
 	Ok(Json(applied))
 }

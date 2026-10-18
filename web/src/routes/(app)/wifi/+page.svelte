@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { Plus, Radio as RadioIcon, Wifi, WifiOff } from '@lucide/svelte';
+	import { Plus, QrCode, Radio as RadioIcon, Waypoints, Wifi, WifiOff } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
+	import { opened } from '#lib/opened.svelte.js';
 	import { devices } from '#lib/api/devices.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
 	import type {
@@ -12,7 +13,7 @@
 	} from '#lib/api/types.js';
 	import { bandLabel } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import { networkColors } from '#lib/components/networks/colors.js';
+	import { palette } from '#lib/palette.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import List from '#lib/components/ui/List.svelte';
 	import PageHeader from '#lib/components/ui/PageHeader.svelte';
@@ -20,6 +21,8 @@
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import NetworkSheet from '#lib/components/wifi/NetworkSheet.svelte';
 	import RadioSheet from '#lib/components/wifi/RadioSheet.svelte';
+	import RoamingSheet from '#lib/components/wifi/RoamingSheet.svelte';
+	import ShareSheet from '#lib/components/wifi/ShareSheet.svelte';
 
 	const wifi = poll(() => api.get<WifiOverview>('/wifi'), 10000);
 	const networks = poll(() => api.get<NetworksOverview>('/networks'), 30000);
@@ -27,6 +30,10 @@
 
 	let editing = $state<string | 'new' | null>(null);
 	let tuning = $state<string | null>(null);
+	let sharing = $state<string | null>(null);
+	let roamingOpen = $state(false);
+
+	opened('network', (id) => (editing = id));
 
 	const securityLabel: Record<string, string> = {
 		wpa3: 'WPA3',
@@ -47,7 +54,7 @@
 		);
 	const tintOf = (network: WifiNetwork) => {
 		const color = networks.data?.networks.find((n) => n.id === network.network)?.color;
-		return color ? networkColors[color] : undefined;
+		return color ? palette[color] : undefined;
 	};
 	const clients = $derived(wifiNetworks.reduce((sum, network) => sum + network.clients, 0));
 	const editingNetwork = $derived(
@@ -72,6 +79,10 @@
 			securityLabel[network.security]
 		];
 		if (network.hidden) parts.push('hidden');
+		if (network.enabled && network.expires) {
+			const at = new Date(network.expires * 1000);
+			parts.push(`off at ${at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`);
+		}
 		return parts.join(' · ');
 	}
 
@@ -122,6 +133,14 @@
 				onclick={() => (editing = network.id)}
 			>
 				{#snippet trailing()}
+					<button
+						type="button"
+						aria-label="Share {network.ssid}"
+						onclick={() => (sharing = network.id)}
+						class="mr-1 grid size-9 cursor-pointer place-items-center rounded-full text-faint transition-colors hover:bg-raised hover:text-fg"
+					>
+						<QrCode size={18} />
+					</button>
 					<Toggle
 						checked={network.enabled}
 						label="Turn {network.ssid} on or off"
@@ -147,6 +166,20 @@
 				onclick={() => (tuning = radio.name)}
 			/>
 		{/each}
+		{#if wifi.data}
+			<Row
+				title="Roaming"
+				detail="Moving between rooms and bands"
+				icon={Waypoints}
+				tint={wifi.data.roaming.fast || wifi.data.roaming.steering
+					? 'var(--color-accent)'
+					: undefined}
+				value={[wifi.data.roaming.fast && 'Fast', wifi.data.roaming.steering && 'Steering']
+					.filter(Boolean)
+					.join(' · ') || 'Off'}
+				onclick={() => (roamingOpen = true)}
+			/>
+		{/if}
 	</List>
 </div>
 
@@ -159,6 +192,18 @@
 		editingNetwork !== 'new' &&
 		you.connection.ssid === editingNetwork?.ssid}
 	onclose={() => (editing = null)}
+	onsaved={() => wifi.refresh()}
+/>
+
+<ShareSheet
+	network={wifiNetworks.find((network) => network.id === sharing) ?? null}
+	onclose={() => (sharing = null)}
+/>
+
+<RoamingSheet
+	roaming={wifi.data?.roaming ?? null}
+	open={roamingOpen}
+	onclose={() => (roamingOpen = false)}
 	onsaved={() => wifi.refresh()}
 />
 

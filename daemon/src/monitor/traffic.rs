@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 
-use crate::netlink::conntrack::Flow;
-use crate::netlink::neighbors::Neighbor;
+use crate::platform::netlink::conntrack::Flow;
+use crate::platform::netlink::neighbors::Neighbor;
 
 #[derive(Default)]
 pub struct Accounting {

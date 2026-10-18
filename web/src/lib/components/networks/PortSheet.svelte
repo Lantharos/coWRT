@@ -8,7 +8,7 @@
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
-	import { networkColors } from './colors';
+	import { palette } from '#lib/palette.js';
 
 	type Props = {
 		port: Port | null;
@@ -63,7 +63,7 @@
 			<p class="text-sm text-muted">Anything plugged in here joins</p>
 			<div class="flex flex-col gap-1">
 				{#each networks as option (option.id)}
-					{@render choice(option.id, option.name, option.address, networkColors[option.color])}
+					{@render choice(option.id, option.name, option.address, palette[option.color])}
 				{/each}
 				{@render choice(null, 'Nothing', 'The port stays switched off', null)}
 			</div>
@@ -78,8 +78,7 @@
 				{#each others as option (option.id)}
 					<div class="flex items-center justify-between gap-4">
 						<span class="flex items-center gap-2.5">
-							<span class="size-2.5 rounded-full" style:background={networkColors[option.color]}
-							></span>
+							<span class="size-2.5 rounded-full" style:background={palette[option.color]}></span>
 							{option.name}
 							<span class="text-[13px] text-faint">VLAN {option.vlan}</span>
 						</span>

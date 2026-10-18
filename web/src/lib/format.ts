@@ -39,3 +39,11 @@ export const bandLabel: Record<string, string> = {
 	'6g': '6 GHz',
 	'60g': '60 GHz'
 };
+
+export function ago(unixSeconds: number) {
+	const seconds = Date.now() / 1000 - unixSeconds;
+	if (seconds < 60) return 'just now';
+	if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+	if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+	return `${Math.round(seconds / 86400)} days ago`;
+}

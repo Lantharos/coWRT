@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Network, Port } from '#lib/api/types.js';
-	import { networkColors } from './colors.js';
+	import { palette } from '#lib/palette.js';
 
 	type Props = {
 		ports: Port[];
@@ -12,7 +12,7 @@
 
 	const colorOf = (port: Port) => {
 		const network = networks.find((n) => n.id === port.network);
-		return network ? networkColors[network.color] : null;
+		return network ? palette[network.color] : null;
 	};
 </script>
 

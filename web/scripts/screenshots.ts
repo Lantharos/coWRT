@@ -1,4 +1,4 @@
-// Captures pages of a running router: bun scripts/screenshots.ts [page | page>row title ...]
+// Captures pages of a running router: bun scripts/screenshots.ts [page | page>button>button | search>query ...]
 import { chromium } from 'playwright';
 
 const base = process.env.COWRT_ROUTER ?? 'http://127.0.0.1:18080';
@@ -19,21 +19,30 @@ for (const [label, viewport] of Object.entries(viewports)) {
 	await page.goto(`${base}/login`);
 	await page.fill('input[type=password]', password);
 	await page.press('input[type=password]', 'Enter');
-	await page.waitForURL(`${base}/`);
+	await page.waitForURL((url) => url.pathname !== '/login');
 	for (const target of wanted) {
-		const [name, row] = target.split('>');
-		await page.goto(`${base}/${name === 'overview' ? '' : name}`);
+		const [name, ...clicks] = target.split('>');
+		await page.goto(`${base}/${['overview', 'search'].includes(name) ? '' : name}`);
 		await page.waitForLoadState('networkidle').catch(() => {});
 		await page.waitForTimeout(2500);
-		if (row) {
-			await page.getByRole('button', { name: row }).first().click();
+		if (name === 'search') {
+			await page.keyboard.press('Control+k');
+			await page.keyboard.type(clicks.join(''));
 			await page.waitForTimeout(800);
+		} else {
+			for (const button of clicks) {
+				await page.getByRole('button', { name: button }).last().click();
+				await page.waitForTimeout(button === clicks.at(-1) ? 6000 : 800);
+			}
 		}
 		const file = target
 			.replace('>', '-')
 			.replace(/[^a-z0-9-]+/gi, '-')
 			.toLowerCase();
-		await page.screenshot({ path: `${out}${file}-${label}.png`, fullPage: !row });
+		await page.screenshot({
+			path: `${out}${file}-${label}.png`,
+			fullPage: !clicks.length && name !== 'search'
+		});
 	}
 	await context.close();
 }

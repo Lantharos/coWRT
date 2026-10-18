@@ -1,4 +1,7 @@
 mod edit;
+mod expiry;
+pub mod roaming;
+mod scan;
 mod security;
 
 use std::collections::HashMap;
@@ -7,11 +10,14 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 pub use edit::{NetworkInput, RadioInput, create_network, delete_network, update_network, update_radio};
+pub use expiry::turn_off_expired;
+pub use roaming::Roaming;
+pub use scan::{Scan, scan};
 pub use security::Security;
 
-use crate::config::uci::{self, Section};
 use crate::devices::sources;
-use crate::ubus::{self, Ubus};
+use crate::platform::config::uci::{self, Section};
+use crate::platform::ubus::{self, Ubus};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,12 +58,14 @@ pub struct Network {
 	pub enabled: bool,
 	pub bands: Vec<String>,
 	pub clients: usize,
+	pub expires: Option<u64>,
 }
 
 #[derive(Serialize)]
 pub struct Overview {
 	pub radios: Vec<Radio>,
 	pub networks: Vec<Network>,
+	pub roaming: Roaming,
 }
 
 fn band_code(band: &str) -> u64 {
@@ -108,11 +116,9 @@ async fn radio_live(ubus: &Ubus, iface: &str, band: &str) -> (Option<RadioLive>,
 	(live, channels, htmodes)
 }
 
-pub async fn overview(ubus: &Ubus) -> Result<Overview, ubus::Error> {
-	let sections = uci::sections(ubus, "wireless").await?;
-	let status = ubus.call("network.wireless", "status", json!({})).await.unwrap_or_default();
-	let mut ifnames: HashMap<String, String> = HashMap::new();
-	if let Value::Object(radios) = &status {
+fn ifnames(status: &Value) -> HashMap<String, String> {
+	let mut ifnames = HashMap::new();
+	if let Value::Object(radios) = status {
 		for radio in radios.values() {
 			for iface in radio.get("interfaces").and_then(Value::as_array).into_iter().flatten() {
 				if let (Some(section), Some(ifname)) = (
@@ -124,15 +130,26 @@ pub async fn overview(ubus: &Ubus) -> Result<Overview, ubus::Error> {
 			}
 		}
 	}
+	ifnames
+}
+
+fn radio_iface<'a>(sections: &[Section], ifnames: &'a HashMap<String, String>, radio: &str) -> Option<&'a String> {
+	sections
+		.iter()
+		.filter(|s| s.kind == "wifi-iface" && s.get("device") == Some(radio))
+		.find_map(|s| ifnames.get(&s.name))
+}
+
+pub async fn overview(ubus: &Ubus) -> Result<Overview, ubus::Error> {
+	let sections = uci::sections(ubus, "wireless").await?;
+	let status = ubus.call("network.wireless", "status", json!({})).await.unwrap_or_default();
+	let ifnames = ifnames(&status);
 
 	let devices: Vec<&Section> = sections.iter().filter(|s| s.kind == "wifi-device").collect();
 	let mut radios = Vec::with_capacity(devices.len());
 	for device in &devices {
 		let band = device.get("band").unwrap_or("5g").to_owned();
-		let iface = sections
-			.iter()
-			.filter(|s| s.kind == "wifi-iface" && s.get("device") == Some(&device.name))
-			.find_map(|s| ifnames.get(&s.name));
+		let iface = radio_iface(&sections, &ifnames, &device.name);
 		let (live, channels, htmodes) = match iface {
 			Some(iface) => radio_live(ubus, iface, &band).await,
 			None => (None, Vec::new(), Vec::new()),
@@ -186,11 +203,16 @@ pub async fn overview(ubus: &Ubus) -> Result<Overview, ubus::Error> {
 			enabled: !iface.flag("disabled"),
 			bands: band.map(str::to_owned).into_iter().collect(),
 			clients: connected,
+			expires: iface.get("cowrt_expires").and_then(|at| at.parse().ok()),
 		});
 	}
 	for network in &mut networks {
 		network.bands.sort_by_key(|band| band_code(band));
 		network.bands.dedup();
 	}
-	Ok(Overview { radios, networks })
+	Ok(Overview {
+		radios,
+		networks,
+		roaming: roaming::load(ubus).await?,
+	})
 }

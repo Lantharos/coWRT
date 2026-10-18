@@ -4,12 +4,13 @@ use axum::Json;
 use axum::extract::State;
 use serde::{Deserialize, Serialize};
 
-use crate::config::Applied;
 use crate::http::{ApiError, ApiResult};
+use crate::internet::qos::{self, Settings};
+use crate::internet::speedtest;
 use crate::internet::{self, Acceleration, Connection};
 use crate::monitor::wan::Wan;
 use crate::networks::ports;
-use crate::qos::{self, Settings};
+use crate::platform::config::Applied;
 use crate::state::AppState;
 
 const ROLLBACK: Option<Duration> = Some(Duration::from_secs(60));
@@ -42,7 +43,7 @@ pub async fn update_connection(State(state): State<AppState>, Json(input): Json<
 }
 
 pub async fn update_qos(State(state): State<AppState>, Json(input): Json<Settings>) -> ApiResult<Applied> {
-	if input.enabled && (input.download < 1000 || input.upload < 1000) {
+	if input.enabled && !input.auto && (input.download < 1000 || input.upload < 1000) {
 		return Err(ApiError::bad_request("Enter your line speeds, at least 1 Mbps each way"));
 	}
 	let applied = state
@@ -58,7 +59,22 @@ pub async fn update_qos(State(state): State<AppState>, Json(input): Json<Setting
 	qos::apply(&state.ubus, wan.device.as_deref())
 		.await
 		.map_err(|err| ApiError::conflict(format!("The smart queue couldn't start: {err}")))?;
+	if input.enabled && input.auto {
+		state.speedtest.start(state.clone());
+	}
 	Ok(Json(applied))
+}
+
+pub async fn speedtest(State(state): State<AppState>) -> Json<speedtest::Overview> {
+	Json(state.speedtest.overview().await)
+}
+
+pub async fn start_speedtest(State(state): State<AppState>) -> Result<(), ApiError> {
+	if state.speedtest.start(state.clone()) {
+		Ok(())
+	} else {
+		Err(ApiError::conflict("A speed test is already running"))
+	}
 }
 
 #[derive(Deserialize)]

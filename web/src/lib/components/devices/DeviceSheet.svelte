@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { Ban, Unplug } from '@lucide/svelte';
+	import { Ban, Power, Unplug } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
-	import type { Device } from '#lib/api/types.js';
+	import type { Device, Person } from '#lib/api/types.js';
 	import { bandLabel, bits, bytes, joined, linkRate } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
@@ -14,10 +14,17 @@
 	import TextField from '#lib/components/ui/controls/TextField.svelte';
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import DeviceControls from './DeviceControls.svelte';
+	import Sparkline from '#lib/components/charts/Sparkline.svelte';
 	import { kinds, kindOf, type Kind } from './kinds';
+	import { recentSignal, signalLabel } from './signal';
 
-	type Props = { device: Device | null; onclose: () => void; onchange: () => void };
-	let { device, onclose, onchange }: Props = $props();
+	type Props = {
+		device: Device | null;
+		people: Person[];
+		onclose: () => void;
+		onchange: () => void;
+	};
+	let { device, people, onclose, onchange }: Props = $props();
 
 	let name = $state('');
 	let reserve = $state(false);
@@ -38,6 +45,20 @@
 
 	const kind = $derived(device ? kindOf(device) : 'other');
 	const connection = $derived(device?.connection);
+	const signal = $derived(device ? recentSignal(device.signals) : null);
+
+	async function wake() {
+		if (!device) return;
+		saving = 'wake';
+		try {
+			await api.post(`/devices/${device.mac}/wake`);
+			toasts.show(`Woke ${device.name}`);
+		} catch (err) {
+			toasts.error(err);
+		} finally {
+			saving = null;
+		}
+	}
 
 	async function update(task: string, body: Record<string, unknown>, message: string) {
 		if (!device) return;
@@ -137,12 +158,52 @@
 							<Ban size={15} /> Block for an hour
 						</Button>
 					</div>
+				{:else if !device.online && device.ipv4}
+					<Button size="sm" class="self-start" onclick={wake} busy={saving === 'wake'}>
+						<Power size={15} /> Wake up
+					</Button>
 				{/if}
 			</div>
+
+			{#if connection?.kind === 'wifi' && signal !== null}
+				<div class="flex items-center justify-between gap-4">
+					<div>
+						<p class="text-[15px]">Signal</p>
+						<p class="text-[13px] {signalLabel(signal) === 'Weak' ? 'text-warn' : 'text-muted'}">
+							{signalLabel(signal)} · {signal} dBm{#if signalLabel(signal) === 'Weak'}, closer to
+								the router helps{/if}
+						</p>
+					</div>
+					<Sparkline
+						values={device.signals.map((dbm) => dbm + 100)}
+						floor={70}
+						color={signalLabel(signal) === 'Weak' ? 'var(--color-warn)' : undefined}
+					/>
+				</div>
+			{/if}
 
 			<DeviceControls {device} {onchange} />
 
 			<div class="flex flex-col">
+				{#if people.length}
+					<Setting title="Belongs to">
+						<div class="w-44">
+							<Select
+								value={device.owner ?? ''}
+								options={[
+									{ value: '', label: 'Nobody' },
+									...people.map((p) => ({ value: p.id, label: p.name }))
+								]}
+								onchange={(owner) =>
+									update(
+										'owner',
+										{ owner: owner || null },
+										owner ? `Belongs to ${people.find((p) => p.id === owner)?.name}` : 'Unassigned'
+									)}
+							/>
+						</div>
+					</Setting>
+				{/if}
 				<Setting title="Type">
 					<div class="w-44">
 						<Select

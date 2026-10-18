@@ -1,6 +1,7 @@
 mod backup;
 mod logs;
 mod settings;
+pub mod setup;
 mod update;
 
 pub use backup::{backup, firmware, restore};
@@ -73,7 +74,7 @@ pub async fn info(State(state): State<AppState>) -> ApiResult<SystemInfo> {
 		revision: board.release.revision,
 		target: board.release.target,
 		cowrt: env!("CARGO_PKG_VERSION"),
-		zonename: crate::config::uci::sections_of(&state.ubus, "system", "system")
+		zonename: crate::platform::config::uci::sections_of(&state.ubus, "system", "system")
 			.await?
 			.first()
 			.and_then(|s| s.get("zonename").map(str::to_owned)),

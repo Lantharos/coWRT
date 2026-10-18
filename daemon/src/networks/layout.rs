@@ -1,5 +1,5 @@
-use crate::config::uci::{self, Section};
-use crate::ubus::{self, Ubus};
+use crate::platform::config::uci::{self, Section};
+use crate::platform::ubus::{self, Ubus};
 
 use super::address::Cidr;
 

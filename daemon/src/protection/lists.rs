@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::io;
 use std::path::PathBuf;
 
-use crate::outbound::Request;
 use crate::state::RUNTIME_DIR;
+use crate::system::outbound::Request;
 
 const LIMIT: u64 = 64 * 1024 * 1024;
 

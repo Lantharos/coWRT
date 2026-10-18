@@ -2,10 +2,10 @@ use std::net::Ipv4Addr;
 
 use serde_json::{Value, json};
 
-use crate::config::uci;
 use crate::devices::{self, section_id};
 use crate::http::ApiError;
 use crate::networks::Layout;
+use crate::platform::config::uci;
 use crate::state::AppState;
 
 fn dns_name(name: &str) -> String {

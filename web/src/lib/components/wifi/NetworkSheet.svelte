@@ -11,6 +11,7 @@
 		WifiNetworkInput
 	} from '#lib/api/types.js';
 	import { bandLabel } from '#lib/format.js';
+	import { generatePassword } from './passwords';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
@@ -54,6 +55,30 @@
 
 	let form = $state<WifiNetworkInput>(blank());
 	let busy = $state<'save' | 'delete' | null>(null);
+	let lifetime = $state('keep');
+
+	const lifetimes = $derived([
+		...(form.expires
+			? [{ value: 'keep', label: `In ${until(form.expires)}` }]
+			: [{ value: 'keep', label: 'Never' }]),
+		...(form.expires ? [{ value: 'never', label: 'Never' }] : []),
+		{ value: '3600', label: 'In an hour' },
+		{ value: '86400', label: 'In a day' },
+		{ value: '604800', label: 'In a week' }
+	]);
+
+	function until(at: number) {
+		const left = at - Date.now() / 1000;
+		if (left < 3600) return `${Math.max(1, Math.round(left / 60))} min`;
+		if (left < 86400) return `${Math.round(left / 3600)} h`;
+		return `${Math.round(left / 86400)} days`;
+	}
+
+	function expiry() {
+		if (lifetime === 'keep') return form.expires;
+		if (lifetime === 'never') return null;
+		return Math.round(Date.now() / 1000) + Number(lifetime);
+	}
 	let confirmDelete = $state(false);
 
 	function blank(): WifiNetworkInput {
@@ -65,6 +90,7 @@
 			isolate: false,
 			network: 'lan',
 			enabled: true,
+			expires: null,
 			bands: [...new Set(radios.filter((radio) => radio.enabled).map((radio) => radio.band))]
 		};
 	}
@@ -76,6 +102,7 @@
 		untrack(() => {
 			if (network === null) return;
 			confirmDelete = false;
+			lifetime = 'keep';
 			form =
 				network === 'new'
 					? blank()
@@ -88,7 +115,11 @@
 	async function save() {
 		busy = 'save';
 		try {
-			const body = { ...form, password: needsPassword ? form.password : null };
+			const body = {
+				...form,
+				password: needsPassword ? form.password : null,
+				expires: expiry()
+			};
 			if (network === 'new') await api.post('/wifi/networks', body);
 			else if (network) await api.put(`/wifi/networks/${network.id}`, body);
 			toasts.show(network === 'new' ? `${form.ssid} is on the air` : 'Wi-Fi updated');
@@ -151,6 +182,14 @@
 				placeholder="At least 8 characters"
 				maxlength={63}
 			/>
+			<Button
+				size="sm"
+				variant="ghost"
+				class="-mt-4 self-start"
+				onclick={() => (form.password = generatePassword())}
+			>
+				Make a new password
+			</Button>
 		{/if}
 
 		{#if bands.length > 1}
@@ -171,6 +210,11 @@
 			</Setting>
 			<Setting title="Keep devices apart" hint="Internet only, no device-to-device">
 				<Toggle bind:checked={form.isolate} label="Keep devices apart" />
+			</Setting>
+			<Setting title="Turn off" hint="Handy for guests">
+				<div class="w-40">
+					<Select bind:value={lifetime} options={lifetimes} />
+				</div>
 			</Setting>
 		</div>
 	</div>

@@ -1,3 +1,5 @@
+pub mod people;
+pub mod policy;
 pub mod sources;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -5,11 +7,11 @@ use std::net::IpAddr;
 
 use serde::Serialize;
 
-use crate::config::uci;
+use crate::devices::policy::Controls;
 use crate::monitor::DeviceUsage;
 use crate::networks::Layout;
-use crate::policy::Controls;
-use crate::ubus::{self, Ubus};
+use crate::platform::config::uci;
+use crate::platform::ubus::{self, Ubus};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +21,7 @@ pub struct Device {
 	pub custom_name: Option<String>,
 	pub hostname: Option<String>,
 	pub icon: Option<String>,
+	pub owner: Option<String>,
 	pub ipv4: Option<String>,
 	pub ipv6: Vec<String>,
 	pub online: bool,
@@ -29,6 +32,7 @@ pub struct Device {
 	pub network: Option<String>,
 	pub controls: Controls,
 	pub usage: DeviceUsage,
+	pub signals: Vec<i64>,
 }
 
 #[derive(Serialize)]
@@ -68,6 +72,7 @@ impl Device {
 			custom_name: None,
 			hostname: None,
 			icon: None,
+			owner: None,
 			ipv4: None,
 			ipv6: Vec::new(),
 			online: false,
@@ -78,6 +83,7 @@ impl Device {
 			network: None,
 			controls: Controls::default(),
 			usage: DeviceUsage::default(),
+			signals: Vec::new(),
 		}
 	}
 }
@@ -104,7 +110,7 @@ pub async fn inventory(
 ) -> Result<Vec<Device>, ubus::Error> {
 	let (leases, neighbors, wifi, local, customs, hosts, wan) = tokio::join!(
 		sources::leases(),
-		tokio::task::spawn_blocking(crate::netlink::neighbors::list),
+		tokio::task::spawn_blocking(crate::platform::netlink::neighbors::list),
 		sources::wifi_clients(ubus),
 		sources::local_macs(),
 		uci::sections_of(ubus, "cowrt", "device"),
@@ -138,6 +144,7 @@ pub async fn inventory(
 		if let Some(device) = custom.get("mac").and_then(|mac| found.entry(mac)) {
 			device.custom_name = custom.get("name").map(str::to_owned);
 			device.icon = custom.get("icon").map(str::to_owned);
+			device.owner = custom.get("owner").map(str::to_owned);
 			device.controls = Controls::from_section(&custom);
 		}
 	}

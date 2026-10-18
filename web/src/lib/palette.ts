@@ -1,0 +1,10 @@
+import type { Color } from '#lib/api/types.js';
+
+export const palette: Record<Color, string> = {
+	green: 'var(--color-accent)',
+	blue: '#4c8dff',
+	purple: '#a477f2',
+	orange: '#ee8a3c',
+	pink: '#e86bb5',
+	teal: '#2ec4b0'
+};

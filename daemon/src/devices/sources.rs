@@ -1,7 +1,7 @@
 use serde_json::{Value, json};
 use tokio::fs;
 
-use crate::ubus::Ubus;
+use crate::platform::ubus::Ubus;
 
 pub struct Lease {
 	pub expires: u64,

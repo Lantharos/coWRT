@@ -4,7 +4,7 @@
 	import { applyChange } from '#lib/api/apply.js';
 	import type { Applied, Network, VpnProvider } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import { networkColors } from '#lib/components/networks/colors.js';
+	import { palette } from '#lib/palette.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Setting from '#lib/components/ui/Setting.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
@@ -83,8 +83,7 @@
 				{#each networks as network (network.id)}
 					<Setting title={network.name}>
 						<span class="flex items-center gap-3">
-							<span class="size-2.5 rounded-full" style:background={networkColors[network.color]}
-							></span>
+							<span class="size-2.5 rounded-full" style:background={palette[network.color]}></span>
 							<Toggle
 								checked={chosen.includes(network.id)}
 								label="Send {network.name} through the VPN"

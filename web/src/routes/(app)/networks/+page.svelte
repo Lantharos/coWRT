@@ -1,22 +1,42 @@
 <script lang="ts">
-	import { Globe, House, Network as NetworkIcon, Plus } from '@lucide/svelte';
+	import {
+		Earth,
+		Gauge,
+		Globe,
+		House,
+		Network as NetworkIcon,
+		Plus,
+		Signpost,
+		Tags
+	} from '@lucide/svelte';
 	import { devices } from '#lib/api/devices.svelte.js';
-	import { bits, joined } from '#lib/format.js';
+	import { ago, bits, joined } from '#lib/format.js';
 	import { api } from '#lib/api/client.js';
+	import { opened } from '#lib/opened.svelte.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
 	import type {
 		Device,
+		Applied,
 		InternetOverview,
+		LanOverview,
 		Network,
 		NetworksOverview,
 		Port
 	} from '#lib/api/types.js';
-	import InternetSheet from '#lib/components/internet/InternetSheet.svelte';
+	import { speedtests } from '#lib/api/speedtest.svelte.js';
+	import { mbps } from '#lib/components/networks/grade.js';
+	import NamesSheet from '#lib/components/networks/NamesSheet.svelte';
+	import RoutesSheet from '#lib/components/networks/RoutesSheet.svelte';
+	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
+	import { applyChange } from '#lib/api/apply.js';
+	import { toasts } from '#lib/toast.svelte.js';
+	import InternetSheet from '#lib/components/networks/InternetSheet.svelte';
+	import SpeedSheet from '#lib/components/networks/SpeedSheet.svelte';
 	import NetworkSheet from '#lib/components/networks/NetworkSheet.svelte';
 	import PortSheet from '#lib/components/networks/PortSheet.svelte';
 	import PortStrip from '#lib/components/networks/PortStrip.svelte';
-	import { networkColors } from '#lib/components/networks/colors.js';
+	import { palette } from '#lib/palette.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import List from '#lib/components/ui/List.svelte';
 	import PageHeader from '#lib/components/ui/PageHeader.svelte';
@@ -24,11 +44,36 @@
 
 	const overview = poll(() => api.get<NetworksOverview>('/networks'), 10000);
 	const settings = poll(() => api.get<InternetOverview>('/internet'), 60000);
+	const lan = poll(() => api.get<LanOverview>('/lan'), 60000);
 	devices.use();
+	speedtests.use();
 
 	let editing = $state<string | 'new' | null>(null);
 	let selectedPort = $state<string | null>(null);
 	let internetOpen = $state(false);
+	let speedOpen = $state(false);
+	let lanPanel = $state<'names' | 'routes' | null>(null);
+
+	opened('network', (id) => (editing = id));
+	opened('open', (panel) => {
+		if (panel === 'speed') speedOpen = true;
+		if (panel === 'names' || panel === 'routes') lanPanel = panel;
+	});
+
+	const count = (n: number, one: string, many: string) =>
+		n ? `${n} ${n === 1 ? one : many}` : 'None';
+
+	async function setIpv6(enabled: boolean) {
+		try {
+			await applyChange(
+				() => api.put<Applied>('/lan/ipv6', { enabled }),
+				enabled ? 'IPv6 is on' : 'IPv6 is off'
+			);
+		} catch (err) {
+			toasts.error(err);
+		}
+		lan.refresh();
+	}
 
 	const networks = $derived(overview.data?.networks ?? []);
 	const ports = $derived(overview.data?.ports ?? []);
@@ -56,6 +101,17 @@
 		else if (!network.trusted) parts.push('kept apart');
 		return parts.join(' · ');
 	}
+
+	const speed = $derived.by(() => {
+		const running = speedtests.data?.running;
+		const latest = speedtests.latest;
+		if (running) return { detail: 'Testing…', value: `${mbps(running.current)} Mbps` };
+		if (!latest) return { detail: 'Measure your line', value: null };
+		return {
+			detail: `Tested ${ago(latest.time)}`,
+			value: `${mbps(latest.download)} / ${mbps(latest.upload)} Mbps`
+		};
+	});
 
 	const internet = $derived.by(() => {
 		const wan = snapshot?.wan;
@@ -94,7 +150,7 @@
 				title={network.name}
 				detail={detail(network)}
 				icon={network.primary ? House : NetworkIcon}
-				tint={networkColors[network.color]}
+				tint={palette[network.color]}
 				graph={devices.traffic(members(network).map((d) => d.mac))}
 				value={joined(bits(rate(network)))}
 				onclick={() => (editing = network.id)}
@@ -124,7 +180,48 @@
 			tone={internet.tone}
 			onclick={() => (internetOpen = true)}
 		/>
+		<Row
+			title="Speed"
+			icon={Gauge}
+			tint={speedtests.latest ? 'var(--color-accent)' : undefined}
+			detail={speed.detail}
+			graph={speedtests.data?.running?.trace ??
+				speedtests.data?.history.map((result) => result.download)}
+			value={speed.value}
+			onclick={() => (speedOpen = true)}
+		/>
 	</List>
+
+	{#if lan.data}
+		<List>
+			<Row
+				title="Local names"
+				detail="Like nas.{lan.data.domain ?? 'lan'}"
+				icon={Tags}
+				value={count(lan.data.names.length, 'name', 'names')}
+				onclick={() => (lanPanel = 'names')}
+			/>
+			<Row
+				title="Routes"
+				detail="Reach networks behind other routers"
+				icon={Signpost}
+				value={count(lan.data.routes.length, 'route', 'routes')}
+				onclick={() => (lanPanel = 'routes')}
+			/>
+			<Row
+				title="IPv6"
+				icon={Earth}
+				tint={lan.data.ipv6.enabled ? 'var(--color-accent)' : undefined}
+				detail={!lan.data.ipv6.enabled
+					? 'Off'
+					: (lan.data.ipv6.prefix ?? lan.data.ipv6.address ?? "Your provider isn't offering it")}
+			>
+				{#snippet trailing()}
+					<Toggle checked={lan.data!.ipv6.enabled} label="IPv6" onchange={setIpv6} />
+				{/snippet}
+			</Row>
+		</List>
+	{/if}
 </div>
 
 <NetworkSheet
@@ -140,6 +237,24 @@
 	onclose={() => (selectedPort = null)}
 	onsaved={() => overview.refresh()}
 />
+
+<NamesSheet
+	names={lan.data?.names ?? []}
+	domain={lan.data?.domain ?? null}
+	devices={devices.list ?? []}
+	open={lanPanel === 'names'}
+	onclose={() => (lanPanel = null)}
+	onsaved={() => lan.refresh()}
+/>
+<RoutesSheet
+	routes={lan.data?.routes ?? []}
+	{networks}
+	open={lanPanel === 'routes'}
+	onclose={() => (lanPanel = null)}
+	onsaved={() => lan.refresh()}
+/>
+
+<SpeedSheet open={speedOpen} onclose={() => (speedOpen = false)} />
 
 <InternetSheet
 	settings={settings.data}

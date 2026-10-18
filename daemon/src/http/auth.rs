@@ -9,8 +9,8 @@ use serde_json::json;
 
 use super::error::ApiError;
 use super::session::{COOKIE, Sessions};
+use crate::platform::ubus;
 use crate::state::AppState;
-use crate::ubus;
 
 pub fn routes() -> Router<AppState> {
 	Router::new()

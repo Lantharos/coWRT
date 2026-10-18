@@ -2,6 +2,7 @@ mod address;
 mod adopt;
 mod edit;
 pub mod firewall;
+pub mod lan;
 mod layout;
 pub mod ports;
 
@@ -14,7 +15,7 @@ pub use layout::Layout;
 use layout::PRIMARY;
 use ports::Port;
 
-use crate::ubus::{self, Ubus};
+use crate::platform::ubus::{self, Ubus};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

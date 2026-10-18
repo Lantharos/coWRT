@@ -1,8 +1,8 @@
 use axum::Json;
 use axum::extract::State;
 
-use crate::config::uci;
 use crate::http::{ApiError, ApiResult};
+use crate::platform::config::uci;
 use crate::protection::{self, Settings, View, private_dns};
 use crate::state::AppState;
 

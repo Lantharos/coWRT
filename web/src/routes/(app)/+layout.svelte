@@ -13,7 +13,9 @@
 	});
 </script>
 
-<div class="mx-auto flex w-full max-w-[1120px] flex-col gap-10 px-4 pt-5 pb-24 sm:px-8 sm:pt-8">
+<div
+	class="mx-auto flex w-full max-w-[1120px] flex-col gap-10 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-24 sm:px-8 sm:pt-8"
+>
 	<Nav />
 	<main class="flex flex-col gap-12">
 		{@render children()}

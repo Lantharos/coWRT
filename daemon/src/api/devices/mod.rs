@@ -1,4 +1,5 @@
 mod controls;
+pub mod people;
 pub mod reservation;
 
 use std::net::{Ipv4Addr, SocketAddr};
@@ -8,17 +9,20 @@ use axum::extract::{ConnectInfo, Path, State};
 use serde::{Deserialize, Deserializer};
 use serde_json::json;
 
-use crate::config::uci;
+use crate::devices::policy::{Priority, Schedule};
 use crate::devices::{self, Connection, Device, normalize_mac, section_id};
 use crate::http::{ApiError, ApiResult};
-use crate::policy::{Priority, Schedule};
+use crate::platform::config::uci;
 use crate::state::AppState;
 
 pub async fn list(State(state): State<AppState>, ConnectInfo(peer): ConnectInfo<SocketAddr>) -> ApiResult<Vec<Device>> {
 	let usage = state.monitor.device_usage().await;
-	Ok(Json(
-		devices::inventory(&state.ubus, &usage, Some(peer.ip().to_canonical())).await?,
-	))
+	let mut signals = state.monitor.signals();
+	let mut devices = devices::inventory(&state.ubus, &usage, Some(peer.ip().to_canonical())).await?;
+	for device in &mut devices {
+		device.signals = signals.remove(&device.mac).unwrap_or_default();
+	}
+	Ok(Json(devices))
 }
 
 fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deserializer: D) -> Result<Option<T>, D::Error> {
@@ -41,6 +45,8 @@ pub struct DeviceUpdate {
 	#[serde(default, deserialize_with = "present")]
 	limit_up: Option<Option<u32>>,
 	priority: Option<Priority>,
+	#[serde(default, deserialize_with = "present")]
+	owner: Option<Option<String>>,
 }
 
 fn mac_param(mac: &str) -> Result<String, ApiError> {
@@ -79,6 +85,9 @@ pub async fn update(
 	}
 	if let Some(reserved) = body.reserved_ip {
 		reservation::set(&state, &mac, reserved).await?;
+	}
+	if let Some(owner) = &body.owner {
+		people::assign(&state, &mac, owner.as_deref()).await?;
 	}
 	controls::set(&state, &mac, &body).await
 }

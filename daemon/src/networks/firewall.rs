@@ -1,7 +1,7 @@
 use serde_json::json;
 
-use crate::config::uci;
-use crate::ubus::{self, Ubus};
+use crate::platform::config::uci;
+use crate::platform::ubus::{self, Ubus};
 
 const CONFIG: &str = "firewall";
 const PREFIX: &str = "cw_";

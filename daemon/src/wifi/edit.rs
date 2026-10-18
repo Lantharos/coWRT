@@ -2,9 +2,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::Security;
-use crate::config::uci::{self, Section};
 use crate::http::ApiError;
-use crate::ubus::Ubus;
+use crate::platform::config::uci::{self, Section};
+use crate::platform::ubus::Ubus;
 
 const CONFIG: &str = "wireless";
 
@@ -19,6 +19,7 @@ pub struct NetworkInput {
 	pub network: String,
 	pub enabled: bool,
 	pub bands: Vec<String>,
+	pub expires: Option<u64>,
 }
 
 impl NetworkInput {
@@ -40,7 +41,7 @@ impl NetworkInput {
 
 	fn values(&self, radio: &str) -> Value {
 		let flag = |on: bool| if on { "1" } else { "0" };
-		json!({
+		let mut values = json!({
 			"device": radio,
 			"mode": "ap",
 			"ssid": self.ssid,
@@ -50,7 +51,11 @@ impl NetworkInput {
 			"isolate": flag(self.isolate),
 			"network": self.network,
 			"disabled": flag(!self.enabled),
-		})
+		});
+		if let Some(at) = self.expires {
+			values["cowrt_expires"] = json!(at.to_string());
+		}
+		values
 	}
 }
 
@@ -79,6 +84,9 @@ async fn write_members(ubus: &Ubus, input: &NetworkInput, radios: &[Section], me
 				if !input.security.needs_password() {
 					uci::unset(ubus, CONFIG, &member.name, &["key"]).await?;
 				}
+				if input.expires.is_none() {
+					uci::unset(ubus, CONFIG, &member.name, &["cowrt_expires"]).await?;
+				}
 			}
 			(true, None) => {
 				uci::add(ubus, CONFIG, "wifi-iface", None, input.values(&radio.name)).await?;
@@ -87,7 +95,7 @@ async fn write_members(ubus: &Ubus, input: &NetworkInput, radios: &[Section], me
 			(false, None) => {}
 		}
 	}
-	Ok(())
+	super::roaming::sync(ubus, super::roaming::load(ubus).await?).await
 }
 
 pub async fn update_network(ubus: &Ubus, id: &str, input: &NetworkInput) -> Result<(), ApiError> {

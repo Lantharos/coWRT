@@ -1,15 +1,13 @@
-use std::process::Stdio;
 use std::time::Duration;
 
 use axum::extract::State;
 use axum::{Json, http::StatusCode};
 use serde::Deserialize;
 use serde_json::json;
-use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
-use crate::config::uci;
 use crate::http::ApiError;
+use crate::platform::config::uci;
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -43,7 +41,7 @@ pub async fn update_settings(State(state): State<AppState>, Json(input): Json<Se
 		})
 		.await?;
 	let _ = Command::new("/etc/init.d/system").arg("reload").status().await;
-	crate::policy::apply(&state.ubus).await?;
+	crate::devices::policy::apply(&state.ubus).await?;
 	Ok(())
 }
 
@@ -54,12 +52,6 @@ pub struct Password {
 }
 
 pub async fn password(State(state): State<AppState>, Json(input): Json<Password>) -> Result<(), ApiError> {
-	if input.next.len() < 8 {
-		return Err(ApiError::bad_request("Use at least 8 characters"));
-	}
-	if input.next.contains('\n') {
-		return Err(ApiError::bad_request("Passwords can't contain line breaks"));
-	}
 	let check = state
 		.ubus
 		.call("session", "login", json!({ "username": "root", "password": input.current }))
@@ -68,23 +60,7 @@ pub async fn password(State(state): State<AppState>, Json(input): Json<Password>
 	if let Some(id) = session.get("ubus_rpc_session").and_then(|id| id.as_str()) {
 		let _ = state.ubus.call("session", "destroy", json!({ "ubus_rpc_session": id })).await;
 	}
-	let mut child = Command::new("passwd")
-		.arg("root")
-		.stdin(Stdio::piped())
-		.stdout(Stdio::null())
-		.stderr(Stdio::piped())
-		.spawn()?;
-	child
-		.stdin
-		.take()
-		.expect("piped stdin")
-		.write_all(format!("{0}\n{0}\n", input.next).as_bytes())
-		.await?;
-	let output = child.wait_with_output().await?;
-	if !output.status.success() {
-		return Err(ApiError::conflict(String::from_utf8_lossy(&output.stderr).trim().to_owned()));
-	}
-	Ok(())
+	crate::system::account::set_password(&input.next).await
 }
 
 pub async fn reboot(State(state): State<AppState>) -> Result<(), ApiError> {

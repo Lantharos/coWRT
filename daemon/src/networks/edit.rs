@@ -5,9 +5,9 @@ use super::address::Cidr;
 use super::firewall;
 use super::layout::{Layout, Membership, PRIMARY};
 use super::{Dhcp, ports};
-use crate::config::uci;
 use crate::http::ApiError;
-use crate::ubus::{self, Ubus};
+use crate::platform::config::uci;
+use crate::platform::ubus::{self, Ubus};
 
 pub const COLORS: [&str; 6] = ["green", "blue", "purple", "orange", "pink", "teal"];
 const RESERVED: [&str; 5] = ["wan", "wan6", "loopback", "globals", "lan"];

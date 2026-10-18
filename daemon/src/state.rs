@@ -1,10 +1,11 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::config::Applier;
 use crate::http::Sessions;
+use crate::internet::speedtest::SpeedTest;
 use crate::monitor::Monitor;
-use crate::ubus::Ubus;
+use crate::platform::config::Applier;
+use crate::platform::ubus::Ubus;
 
 pub const RUNTIME_DIR: &str = "/tmp/cowrt";
 
@@ -18,6 +19,7 @@ pub struct AppState {
 	pub sessions: Arc<Sessions>,
 	pub monitor: Arc<Monitor>,
 	pub applier: Arc<Applier>,
+	pub speedtest: Arc<SpeedTest>,
 }
 
 impl AppState {
@@ -28,6 +30,7 @@ impl AppState {
 			sessions: Arc::new(Sessions::load().await),
 			monitor: Arc::default(),
 			applier: Arc::default(),
+			speedtest: Arc::default(),
 		}
 	}
 }

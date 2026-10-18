@@ -8,6 +8,7 @@
 	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
 	import Select from '#lib/components/ui/controls/Select.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
+	import ChannelScan from './ChannelScan.svelte';
 	import Setting from '#lib/components/ui/Setting.svelte';
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import { countries } from './countries';
@@ -97,6 +98,10 @@
 		</Setting>
 
 		<Select bind:value={form.channel} options={channels} label="Channel" />
+
+		{#if radio?.enabled && radio.up}
+			<ChannelScan {radio} onpick={(channel) => (form.channel = String(channel))} />
+		{/if}
 
 		{#if widths.length > 1 && width}
 			<Segmented bind:value={width} options={widths} label="Channel width" />

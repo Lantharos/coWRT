@@ -69,6 +69,7 @@ export interface Device {
 	customName: string | null;
 	hostname: string | null;
 	icon: string | null;
+	owner: string | null;
 	ipv4: string | null;
 	online: boolean;
 	connection: Connection;
@@ -79,6 +80,7 @@ export interface Device {
 	ipv6: string[];
 	controls: DeviceControls;
 	usage: DeviceUsage;
+	signals: number[];
 }
 
 export type Day = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
@@ -120,6 +122,7 @@ export interface WifiNetwork {
 	enabled: boolean;
 	bands: Band[];
 	clients: number;
+	expires: number | null;
 }
 
 export type WifiNetworkInput = Omit<WifiNetwork, 'id' | 'clients'>;
@@ -152,16 +155,34 @@ export interface RadioInput {
 	enabled: boolean;
 }
 
+export interface Roaming {
+	fast: boolean;
+	steering: boolean;
+}
+
 export interface WifiOverview {
 	radios: Radio[];
 	networks: WifiNetwork[];
+	roaming: Roaming;
+}
+
+export interface ChannelLoad {
+	channel: number;
+	networks: number;
+	load: number;
+}
+
+export interface WifiScan {
+	neighbors: { ssid: string; channel: number; signal: number; width: number }[];
+	channels: ChannelLoad[];
+	best: number | null;
 }
 
 export interface Applied {
 	confirm: { token: string; seconds: number } | null;
 }
 
-export type NetworkColor = 'green' | 'blue' | 'purple' | 'orange' | 'pink' | 'teal';
+export type Color = 'green' | 'blue' | 'purple' | 'orange' | 'pink' | 'teal';
 
 export interface Dhcp {
 	enabled: boolean;
@@ -173,7 +194,7 @@ export interface Dhcp {
 export interface Network {
 	id: string;
 	name: string;
-	color: NetworkColor;
+	color: Color;
 	primary: boolean;
 	vlan: number;
 	address: string | null;
@@ -187,7 +208,7 @@ export interface Network {
 
 export interface NetworkInput {
 	name: string;
-	color: NetworkColor;
+	color: Color;
 	vlan: number;
 	address: string;
 	dhcp: Dhcp;
@@ -226,6 +247,7 @@ export interface InternetConnection {
 
 export interface SmartQueue {
 	enabled: boolean;
+	auto: boolean;
 	download: number;
 	upload: number;
 }
@@ -349,4 +371,60 @@ export interface LogEntry {
 	time: number;
 	level: 'error' | 'warning' | 'info' | 'debug';
 	message: string;
+}
+
+export interface SpeedResult {
+	time: number;
+	download: number;
+	upload: number;
+	latency: number;
+	loadedLatency: number | null;
+}
+
+export interface SpeedProgress {
+	phase: 'latency' | 'download' | 'upload';
+	latency: number | null;
+	download: number | null;
+	upload: number | null;
+	current: number;
+	trace: number[];
+}
+
+export interface SpeedOverview {
+	running: SpeedProgress | null;
+	error: string | null;
+	history: SpeedResult[];
+}
+
+export interface Person {
+	id: string;
+	name: string;
+	color: Color;
+	blocked: boolean;
+	schedules: Schedule[];
+}
+
+export interface LocalName {
+	id: string;
+	name: string;
+	ip: string;
+}
+
+export interface StaticRoute {
+	id: string;
+	target: string;
+	gateway: string;
+	network: string;
+}
+
+export interface LanOverview {
+	domain: string | null;
+	names: LocalName[];
+	routes: StaticRoute[];
+	ipv6: { enabled: boolean; address: string | null; prefix: string | null };
+}
+
+export interface SetupStatus {
+	needed: boolean;
+	passwordSet: boolean;
 }

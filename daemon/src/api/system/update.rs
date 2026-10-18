@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use tokio::process::Command;
 
 use crate::http::{ApiError, ApiResult};
-use crate::outbound::Request;
+use crate::system::outbound::Request;
 
 const RELEASES: &str = "https://api.github.com/repos/Lantharos/coWRT/releases/latest";
 const PACKAGE: &str = "/tmp/cowrt-update.apk";

@@ -2,7 +2,7 @@ use std::fmt;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 
-use crate::config::uci::Section;
+use crate::platform::config::uci::Section;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Cidr {
@@ -28,6 +28,14 @@ impl Cidr {
 
 	pub fn network(self) -> u32 {
 		u32::from(self.addr) & self.mask()
+	}
+
+	pub fn canonical(self) -> Self {
+		self.with_host(Ipv4Addr::from(self.network()))
+	}
+
+	pub fn broadcast(self) -> Ipv4Addr {
+		Ipv4Addr::from(self.network() | !self.mask())
 	}
 
 	pub fn contains(self, ip: Ipv4Addr) -> bool {

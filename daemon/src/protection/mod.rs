@@ -13,11 +13,11 @@ use tokio::sync::Mutex;
 
 use lists::List;
 
-use crate::config::uci;
+use crate::devices::policy;
 use crate::networks::Layout;
-use crate::policy;
+use crate::platform::config::uci;
+use crate::platform::ubus::{self, Ubus};
 use crate::state::{AppState, RUNTIME_DIR, unix_now};
-use crate::ubus::{self, Ubus};
 
 const SECTION: &str = "protection";
 const REFRESH: Duration = Duration::from_secs(24 * 3600);

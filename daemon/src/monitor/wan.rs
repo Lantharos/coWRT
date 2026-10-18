@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::ubus::Ubus;
+use crate::platform::ubus::Ubus;
 
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]

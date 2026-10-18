@@ -1,10 +1,10 @@
 use serde_json::json;
 
 use super::DeviceUpdate;
-use crate::config::uci;
+use crate::devices::policy;
 use crate::devices::section_id;
 use crate::http::ApiError;
-use crate::policy;
+use crate::platform::config::uci;
 use crate::state::AppState;
 
 const MAX_LIMIT_KBIT: u32 = 10_000_000;

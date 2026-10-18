@@ -1,6 +1,7 @@
+use crate::devices::policy;
+use crate::internet::qos;
 use crate::networks::Layout;
 use crate::state::AppState;
-use crate::{policy, qos};
 
 #[derive(Default)]
 pub struct Watcher {

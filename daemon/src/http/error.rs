@@ -3,12 +3,18 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
-use crate::ubus;
+use crate::platform::ubus;
 
 #[derive(Debug)]
 pub struct ApiError {
 	status: StatusCode,
 	message: String,
+}
+
+impl std::fmt::Display for ApiError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		f.write_str(&self.message)
+	}
 }
 
 impl ApiError {

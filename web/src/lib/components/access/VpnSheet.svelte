@@ -2,6 +2,7 @@
 	import { Plus } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import type { VpnPeer, VpnServer } from '#lib/api/types.js';
+	import { ago } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Row from '#lib/components/ui/Row.svelte';
@@ -60,11 +61,8 @@
 
 	function seen(peer: VpnPeer) {
 		if (!peer.status.handshake) return 'Never connected';
-		const seconds = Date.now() / 1000 - peer.status.handshake;
-		if (seconds < 180) return 'Connected';
-		if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
-		if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
-		return `${Math.round(seconds / 86400)} days ago`;
+		if (Date.now() / 1000 - peer.status.handshake < 180) return 'Connected';
+		return ago(peer.status.handshake);
 	}
 </script>
 

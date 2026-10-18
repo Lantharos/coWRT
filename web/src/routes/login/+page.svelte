@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api, ApiError } from '#lib/api/client.js';
+	import type { SetupStatus } from '#lib/api/types.js';
 	import Logo from '#lib/components/layout/Logo.svelte';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import TextField from '#lib/components/ui/controls/TextField.svelte';
@@ -8,6 +10,11 @@
 	let password = $state('');
 	let error = $state<string | null>(null);
 	let busy = $state(false);
+
+	onMount(async () => {
+		const setup = await api.get<SetupStatus>('/setup').catch(() => null);
+		if (setup?.needed && !setup.passwordSet) goto('/setup');
+	});
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();

@@ -1,11 +1,10 @@
+mod access;
 pub mod devices;
 mod internet;
 mod live;
 mod networks;
 mod protection;
-mod sharing;
 mod system;
-mod vpn;
 mod wifi;
 
 use axum::Router;
@@ -36,38 +35,57 @@ pub fn routes() -> Router<AppState> {
 			post(system::firmware).layer(axum::extract::DefaultBodyLimit::max(UPLOAD_LIMIT)),
 		)
 		.route("/live", get(live::socket))
+		.route("/setup/wifi", put(system::setup::wifi))
+		.route("/setup/done", post(system::setup::done))
 		.route("/internet", get(internet::overview))
 		.route("/internet/connection", put(internet::update_connection))
 		.route("/internet/qos", put(internet::update_qos))
 		.route("/internet/acceleration", put(internet::update_acceleration))
-		.route("/sharing", get(sharing::overview))
-		.route("/forwards", post(sharing::create))
-		.route("/forwards/{id}", put(sharing::update).delete(sharing::delete))
-		.route("/forwards/check", post(sharing::check))
-		.route("/upnp", put(sharing::set_upnp))
-		.route("/ddns", put(sharing::set_ddns))
+		.route(
+			"/internet/speedtest",
+			get(internet::speedtest).post(internet::start_speedtest),
+		)
+		.route("/sharing", get(access::sharing::overview))
+		.route("/forwards", post(access::sharing::create))
+		.route("/forwards/{id}", put(access::sharing::update).delete(access::sharing::delete))
+		.route("/forwards/check", post(access::sharing::check))
+		.route("/upnp", put(access::sharing::set_upnp))
+		.route("/ddns", put(access::sharing::set_ddns))
 		.route("/protection", get(protection::overview).put(protection::update))
 		.route("/protection/dns", put(protection::update_dns))
-		.route("/vpn", get(vpn::overview))
-		.route("/vpn/server", put(vpn::update_server))
-		.route("/vpn/server/peers", post(vpn::add_peer))
-		.route("/vpn/server/peers/{id}", axum::routing::delete(vpn::remove_peer))
-		.route("/vpn/server/peers/{id}/config", get(vpn::peer_config))
-		.route("/vpn/client", put(vpn::update_client))
+		.route("/vpn", get(access::vpn::overview))
+		.route("/vpn/server", put(access::vpn::update_server))
+		.route("/vpn/server/peers", post(access::vpn::add_peer))
+		.route("/vpn/server/peers/{id}", axum::routing::delete(access::vpn::remove_peer))
+		.route("/vpn/server/peers/{id}/config", get(access::vpn::peer_config))
+		.route("/vpn/client", put(access::vpn::update_client))
 		.route("/networks", get(networks::overview).post(networks::create))
 		.route("/networks/{id}", put(networks::update).delete(networks::delete))
 		.route("/ports/{name}", put(networks::update_port))
+		.route("/people", get(devices::people::list).post(devices::people::create))
+		.route("/people/{id}", put(devices::people::update).delete(devices::people::delete))
 		.route("/devices", get(devices::list))
 		.route("/devices/{mac}", axum::routing::patch(devices::update))
 		.route("/devices/{mac}/disconnect", post(devices::disconnect))
+		.route("/devices/{mac}/wake", post(networks::lan::wake))
+		.route("/lan", get(networks::lan::overview))
+		.route("/lan/names", post(networks::lan::create_name))
+		.route("/lan/names/{id}", axum::routing::delete(networks::lan::delete_name))
+		.route("/lan/routes", post(networks::lan::create_route))
+		.route("/lan/routes/{id}", axum::routing::delete(networks::lan::delete_route))
+		.route("/lan/ipv6", put(networks::lan::set_ipv6))
 		.route("/wifi", get(wifi::overview))
 		.route("/wifi/networks", post(wifi::create))
 		.route("/wifi/networks/{id}", put(wifi::update).delete(wifi::delete))
 		.route("/wifi/radios/{name}", put(wifi::update_radio))
+		.route("/wifi/radios/{name}/scan", post(wifi::scan))
+		.route("/wifi/roaming", put(wifi::update_roaming))
 }
 
 pub fn public_routes() -> Router<AppState> {
-	Router::new().route("/changes/{token}/confirm", post(confirm))
+	Router::new()
+		.route("/changes/{token}/confirm", post(confirm))
+		.merge(system::setup::public_routes())
 }
 
 async fn confirm(State(state): State<AppState>, Path(token): Path<String>) -> Result<(), ApiError> {

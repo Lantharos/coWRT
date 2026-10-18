@@ -1,22 +1,14 @@
+mod access;
 mod api;
-mod config;
-mod ddns;
 mod devices;
-mod forwards;
 mod http;
 mod internet;
 mod monitor;
-mod netlink;
 mod networks;
-mod outbound;
-mod packages;
-mod policy;
+mod platform;
 mod protection;
-mod qos;
-mod secret;
 mod state;
-mod ubus;
-mod vpn;
+mod system;
 mod wifi;
 
 use std::net::SocketAddr;
@@ -55,11 +47,14 @@ async fn main() {
 	if let Err(err) = networks::adopt(&state.ubus).await {
 		eprintln!("cowrtd: could not set up the network layout: {err}");
 	}
-	if let Err(err) = forwards::repair(&state.ubus).await {
+	if let Err(err) = access::forwards::repair(&state.ubus).await {
 		eprintln!("cowrtd: could not restore port forwards: {err}");
 	}
+	if let Err(err) = system::setup::skip_if_configured(&state).await {
+		eprintln!("cowrtd: could not check first-time setup: {err}");
+	}
 	monitor::spawn(state.clone());
-	ddns::spawn(state.clone());
+	access::ddns::spawn(state.clone());
 	protection::spawn(state.clone());
 
 	let listener = tokio::net::TcpListener::bind(args.listen)

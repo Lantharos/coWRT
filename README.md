@@ -5,12 +5,14 @@ A modern interface for OpenWrt routers. coWRT replaces LuCI with a fast, friendl
 ## What it does
 
 - **Overview**: whether you're online, how many devices are connected, today's usage and live speed.
-- **Devices**: every device with its network, signal and live speed. Rename it, reserve its address, pause its internet, set quiet times, cap its speed or give it priority.
-- **Wi-Fi**: networks spanning both bands, which network their devices join, and per-radio channel, width and power.
-- **Networks**: groups of devices with their own address range, ports, Wi-Fi and rules. Plus the internet connection (automatic, fixed or PPPoE, with an optional VLAN tag), a smart queue against bufferbloat, and acceleration.
+- **Devices**: every device with its network, signal history and live speed. Rename it, reserve its address, wake it up, pause its internet, set quiet times, cap its speed or give it priority. Group devices under people to pause them together or give them a bedtime.
+- **Wi-Fi**: networks spanning every band, which network their devices join, QR codes for joining, guest networks that turn themselves off, fast roaming and band steering, and per-radio channel, width and power with a scan for the quietest channel.
+- **Networks**: groups of devices with their own address range, ports, Wi-Fi and rules. Plus the internet connection (automatic, fixed or PPPoE, with an optional VLAN tag), a speed test that also measures lag under load, a smart queue against bufferbloat that can set itself from the speed test, acceleration, local names like `nas.lan`, static routes and IPv6.
 - **Access**: a reachability test, port forwards, automatic port forwarding (UPnP and NAT-PMP), dynamic DNS on Cloudflare, a WireGuard VPN with QR codes, and routing whole networks through a VPN provider with a kill switch.
 - **Security**: ad, tracker and threat blocking per network, an allow list, and encrypted DNS.
 - **System**: health charts, router name and time zone, password, backups, firmware, restarts, logs and coWRT updates.
+
+Press ⌘K (or Ctrl+K, or /) anywhere to jump to a device, person, network or setting. On a fresh router, coWRT starts with a short setup: a password, the Wi-Fi name and the time zone. It can be added to a phone's home screen like an app.
 
 ## How it fits together
 
@@ -36,9 +38,13 @@ Changes that could cut you off, like editing a network, a port or the internet c
 
 coWRT keeps its own nftables tables next to the stock firewall. Pausing a device or giving it quiet times adds rules on the forward path, speed limits are enforced on each network's interface, and priority marks connections so the smart queue (cake on the WAN) can serve them first or last. Per-device speeds and daily totals come from connection tracking, so they're counted even when acceleration is on, but limits and priority only apply to traffic the router's processor sees.
 
+## Speed test
+
+The speed test runs on the router itself against Cloudflare's speed test servers: idle latency first, then eight seconds of download and upload over six connections each, while it keeps measuring latency to see how much the line lags under load. The smart queue is paused during the test so it measures the real line. With "Set speeds from the speed test" on, the smart queue uses 90% of the measured speeds. The last 30 results are kept in `/etc/cowrt/speedtests.json`.
+
 ## Extras installed on demand
 
-Some features pull in an OpenWrt package the first time you switch them on: UPnP (`miniupnpd-nftables`), the VPN (`kmod-wireguard`, `wireguard-tools`) and encrypted DNS (`https-dns-proxy`). The router needs to be online for that.
+Some features pull in an OpenWrt package the first time you switch them on: UPnP (`miniupnpd-nftables`), the VPN (`kmod-wireguard`, `wireguard-tools`), encrypted DNS (`https-dns-proxy`) and band steering (`usteer`). The router needs to be online for that. Fast roaming uses 802.11r everywhere, and adds 802.11k and 802.11v when the full `wpad` package is installed instead of the basic one.
 
 ## Releases
 

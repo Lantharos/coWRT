@@ -8,12 +8,16 @@
 		LogOut,
 		MonitorSmartphone,
 		Network,
+		Search,
 		Shield,
 		Wifi
 	} from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { live } from '#lib/api/live.svelte.js';
+	import QuickSearch from '#lib/components/search/QuickSearch.svelte';
 	import Logo from './Logo.svelte';
+
+	let searching = $state(false);
 
 	const tabs = [
 		{ href: '/', label: 'Overview', icon: Gauge },
@@ -58,13 +62,26 @@
 			</a>
 		{/each}
 	</nav>
-	<button
-		type="button"
-		onclick={signOut}
-		aria-label="Sign out"
-		title="Sign out"
-		class="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-faint transition-colors hover:bg-raised hover:text-fg"
-	>
-		<LogOut size={17} />
-	</button>
+	<div class="flex shrink-0 items-center gap-1">
+		<button
+			type="button"
+			onclick={() => (searching = true)}
+			aria-label="Search"
+			title="Search (⌘K)"
+			class="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-faint transition-colors hover:bg-raised hover:text-fg"
+		>
+			<Search size={17} />
+		</button>
+		<button
+			type="button"
+			onclick={signOut}
+			aria-label="Sign out"
+			title="Sign out"
+			class="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-faint transition-colors hover:bg-raised hover:text-fg"
+		>
+			<LogOut size={17} />
+		</button>
+	</div>
 </header>
+
+<QuickSearch bind:open={searching} />

@@ -12,6 +12,7 @@
 		ScrollText
 	} from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
+	import { opened } from '#lib/opened.svelte.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
 	import type { SystemInfo } from '#lib/api/types.js';
@@ -35,6 +36,8 @@
 	const system = poll(() => api.get<SystemInfo>('/system'), 60000);
 
 	let panel = $state<Panel | null>(null);
+
+	opened('open', (value) => (panel = value as Panel));
 
 	const close = () => (panel = null);
 	const snapshot = $derived(live.snapshot);

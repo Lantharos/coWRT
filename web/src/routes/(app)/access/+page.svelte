@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ArrowRightLeft, AtSign, Gamepad2, KeyRound, Plus, Route } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
+	import { opened } from '#lib/opened.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
 	import type {
 		Device,
@@ -29,6 +30,8 @@
 
 	let editing = $state<string | 'new' | null>(null);
 	let panel = $state<Panel | null>(null);
+
+	opened('open', (value) => (panel = value as Panel));
 	let testing = $state(false);
 	let reachable = $state<boolean | null>(null);
 

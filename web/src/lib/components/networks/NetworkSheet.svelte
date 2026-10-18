@@ -3,15 +3,16 @@
 	import { Trash2 } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { applyChange } from '#lib/api/apply.js';
-	import type { Applied, Network, NetworkColor, NetworkInput } from '#lib/api/types.js';
+	import type { Applied, Network, Color, NetworkInput } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
+	import ColorPicker from '#lib/components/ui/controls/ColorPicker.svelte';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Select from '#lib/components/ui/controls/Select.svelte';
 	import Setting from '#lib/components/ui/Setting.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
 	import TextField from '#lib/components/ui/controls/TextField.svelte';
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
-	import { networkColors } from './colors';
+	import { palette } from '#lib/palette.js';
 
 	type Props = {
 		network: Network | 'new' | null;
@@ -41,8 +42,7 @@
 		let next = 10;
 		while (used.has(next)) next += 10;
 		const taken = new Set(networks.map((n) => n.color));
-		const color =
-			(Object.keys(networkColors) as NetworkColor[]).find((c) => !taken.has(c)) ?? 'blue';
+		const color = (Object.keys(palette) as Color[]).find((c) => !taken.has(c)) ?? 'blue';
 		return {
 			name: '',
 			color,
@@ -148,24 +148,7 @@
 			maxlength={32}
 		/>
 
-		<div class="flex flex-col gap-1.5">
-			<span class="text-[13px] text-muted">Color</span>
-			<div class="flex gap-2">
-				{#each Object.entries(networkColors) as [name, hex] (name)}
-					<button
-						type="button"
-						aria-label={name}
-						aria-pressed={form.color === name}
-						onclick={() => (form.color = name as NetworkColor)}
-						class="grid size-9 cursor-pointer place-items-center rounded-full transition-transform hover:scale-110 {form.color ===
-						name
-							? 'ring-2 ring-fg ring-offset-2 ring-offset-surface'
-							: ''}"
-						style:background={hex}
-					></button>
-				{/each}
-			</div>
-		</div>
+		<ColorPicker bind:value={form.color} />
 
 		<TextField bind:value={form.address} label="Router address" placeholder="10.0.20.1/24" />
 

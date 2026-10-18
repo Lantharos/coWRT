@@ -6,8 +6,8 @@ use super::address::Cidr;
 use super::edit;
 use super::firewall;
 use super::layout::{DEFAULT_BRIDGE, Layout, Membership, PRIMARY};
-use crate::config::{self, uci};
-use crate::ubus::{self, Ubus};
+use crate::platform::config::{self, uci};
+use crate::platform::ubus::{self, Ubus};
 
 const PRIMARY_VLAN: u16 = 1;
 const STOCK_ADDRESS: Cidr = Cidr {

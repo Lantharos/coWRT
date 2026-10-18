@@ -59,8 +59,10 @@
 		<span class="hidden sm:block"><Sparkline values={graph} color={tint} floor={graphMax} /></span>
 	{/if}
 	{#if value}
-		<span class="max-w-[45%] shrink-0 truncate text-right text-[15px] {toneClass[tone]}"
-			>{value}</span
+		<span
+			class="max-w-[45%] shrink-0 truncate text-right text-[15px] {toneClass[tone]} {trailing
+				? 'hidden sm:block'
+				: ''}">{value}</span
 		>
 	{/if}
 {/snippet}
@@ -73,6 +75,8 @@
 			size={18}
 			class="shrink-0 text-faint transition-transform group-hover:translate-x-0.5"
 		/>
+	{:else if !trailing}
+		<span class="w-[18px] shrink-0" aria-hidden="true"></span>
 	{/if}
 {/snippet}
 

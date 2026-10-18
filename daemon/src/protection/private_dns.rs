@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::process::Command;
 
-use crate::config::uci;
 use crate::http::ApiError;
-use crate::packages;
-use crate::ubus::{self, Ubus};
+use crate::platform::config::uci;
+use crate::platform::ubus::{self, Ubus};
+use crate::system::packages;
 
 const SECTION: &str = "private_dns";
 const PACKAGE: &str = "https-dns-proxy";
