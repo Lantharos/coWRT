@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Plus, Search } from '@lucide/svelte';
+	import { Plus } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { opened } from '#lib/opened.svelte.js';
 	import { devices } from '#lib/api/devices.svelte.js';
@@ -11,6 +11,7 @@
 	import PersonRow from '#lib/components/devices/PersonRow.svelte';
 	import PersonSheet from '#lib/components/devices/PersonSheet.svelte';
 	import Button from '#lib/components/ui/controls/Button.svelte';
+	import SearchField from '#lib/components/ui/controls/SearchField.svelte';
 	import List from '#lib/components/ui/List.svelte';
 	import PageHeader from '#lib/components/ui/PageHeader.svelte';
 
@@ -76,16 +77,12 @@
 		{online === 1 ? 'device' : 'devices'} online
 	{/snippet}
 	{#snippet action()}
-		<label
-			class="flex h-11 w-full items-center gap-2.5 rounded-control bg-surface px-3.5 text-muted focus-within:bg-raised sm:w-72"
-		>
-			<Search size={17} class="shrink-0" />
-			<input
-				bind:value={query}
-				placeholder="Find a device"
-				class="w-full bg-transparent text-[15px] text-fg outline-none placeholder:text-faint"
-			/>
-		</label>
+		<SearchField
+			bind:value={query}
+			placeholder="Find a device"
+			tone="surface"
+			class="w-full sm:w-72"
+		/>
 	{/snippet}
 </PageHeader>
 

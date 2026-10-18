@@ -28,7 +28,9 @@
 	{#if label}
 		<label for={id} class="text-[13px] text-muted">{label}</label>
 	{/if}
-	<div class="relative">
+	<div
+		class="relative rounded-control bg-raised field-focus transition-[background-color] hover:bg-overlay has-[:focus]:bg-overlay"
+	>
 		<input
 			{id}
 			{...rest}
@@ -36,7 +38,7 @@
 			type={secret && !revealed ? 'password' : (rest.type ?? 'text')}
 			spellcheck="false"
 			autocomplete="off"
-			class="h-11 w-full rounded-control bg-raised px-3.5 text-[15px] text-fg transition-colors outline-none placeholder:text-faint hover:bg-overlay focus:bg-overlay focus-visible:outline-none {secret
+			class="h-11 w-full rounded-control bg-transparent px-3.5 text-[15px] text-fg outline-none placeholder:text-faint {secret
 				? 'pr-11'
 				: ''} {mono ? 'tracking-tight' : ''}"
 		/>
@@ -45,7 +47,7 @@
 				type="button"
 				onclick={() => (revealed = !revealed)}
 				aria-label={revealed ? 'Hide' : 'Show'}
-				class="absolute top-1/2 right-2 grid size-8 -translate-y-1/2 cursor-pointer place-items-center rounded-lg text-faint hover:text-fg"
+				class="absolute top-1/2 right-2 grid size-8 -translate-y-1/2 cursor-pointer place-items-center rounded-lg text-faint outline-none hover:text-fg focus-visible:text-fg"
 			>
 				{#if revealed}<EyeOff size={17} />{:else}<Eye size={17} />{/if}
 			</button>

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { Search } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { poll } from '#lib/api/poll.svelte.js';
 	import type { LogEntry } from '#lib/api/types.js';
+	import SearchField from '#lib/components/ui/controls/SearchField.svelte';
 	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
 
 	type Filter = 'all' | 'problems';
@@ -30,16 +30,7 @@
 </script>
 
 <div class="flex flex-col gap-3">
-	<label
-		class="flex h-11 flex-1 items-center gap-2.5 rounded-control bg-raised px-3.5 text-muted focus-within:bg-overlay"
-	>
-		<Search size={17} class="shrink-0" />
-		<input
-			bind:value={query}
-			placeholder="Search the log"
-			class="w-full bg-transparent text-[15px] text-fg outline-none placeholder:text-faint"
-		/>
-	</label>
+	<SearchField bind:value={query} placeholder="Search the log" />
 	<div>
 		<Segmented
 			bind:value={filter}

@@ -65,7 +65,7 @@
 		placeholder="Search devices, people, settings"
 		aria-label="Search"
 		bind:this={input}
-		class="w-full bg-transparent text-[17px] text-fg outline-none placeholder:text-faint focus-visible:outline-none"
+		class="w-full bg-transparent text-[17px] text-fg outline-none placeholder:text-faint"
 	/>
 </label>
 <div bind:this={list} role="listbox" class="max-h-[min(60vh,480px)] overflow-y-auto px-2 pb-2">
