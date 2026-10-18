@@ -22,7 +22,7 @@ exec qemu-system-x86_64 \
 	-enable-kvm -cpu host -smp 2 -m 512 \
 	-drive "file=$image,format=raw,if=virtio" \
 	-device virtio-net-pci,mac=52:54:00:12:34:56 \
-	-netdev "user,id=wan,hostfwd=tcp:127.0.0.1:10022-:22,hostfwd=tcp:127.0.0.1:10080-:80" \
+	-netdev "user,id=wan,hostfwd=tcp:127.0.0.1:10022-:22,hostfwd=tcp:127.0.0.1:18080-:80" \
 	-device virtio-net-pci,netdev=wan,mac=52:54:00:12:34:57 \
 	-device virtio-net-pci,mac=52:54:00:12:34:58 \
 	-device virtio-net-pci,mac=52:54:00:12:34:59 \

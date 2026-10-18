@@ -39,11 +39,3 @@ export const bandLabel: Record<string, string> = {
 	'6g': '6 GHz',
 	'60g': '60 GHz'
 };
-
-export function signalQuality(dbm: number | null) {
-	if (dbm === null) return 0;
-	if (dbm >= -55) return 4;
-	if (dbm >= -65) return 3;
-	if (dbm >= -75) return 2;
-	return 1;
-}

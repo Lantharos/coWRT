@@ -54,7 +54,7 @@ Start the development router. The first run downloads and verifies the OpenWrt i
 dev/vm/run.sh -daemonize
 ```
 
-The VM's root password is whatever you set over the serial console (`.vm/console.sock`). SSH in with `dev/vm/ssh.sh` once your key is in `/etc/dropbear/authorized_keys`. The VM's LAN ports have nothing attached, so everything reaches it through its WAN port: SSH on 127.0.0.1:10022 and the web interface on 127.0.0.1:10080.
+The VM's root password is whatever you set over the serial console (`.vm/console.sock`). SSH in with `dev/vm/ssh.sh` once your key is in `/etc/dropbear/authorized_keys`. The VM's LAN ports have nothing attached, so everything reaches it through its WAN port: SSH on 127.0.0.1:10022 and the web interface on 127.0.0.1:18080.
 
 Build the package and install it into the VM:
 

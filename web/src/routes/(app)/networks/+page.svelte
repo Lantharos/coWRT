@@ -3,128 +3,115 @@
 	import { api } from '#lib/api/client.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
-	import type { InternetOverview, Network, NetworksOverview, Port } from '#lib/api/types.js';
-	import { duration } from '#lib/format.js';
-	import ConnectionSheet from '#lib/components/internet/ConnectionSheet.svelte';
-	import Performance from '#lib/components/internet/Performance.svelte';
+	import type {
+		Device,
+		InternetOverview,
+		Network,
+		NetworksOverview,
+		Port
+	} from '#lib/api/types.js';
+	import InternetSheet from '#lib/components/internet/InternetSheet.svelte';
 	import NetworkSheet from '#lib/components/networks/NetworkSheet.svelte';
 	import PortSheet from '#lib/components/networks/PortSheet.svelte';
-	import PortTile from '#lib/components/networks/PortTile.svelte';
+	import PortStrip from '#lib/components/networks/PortStrip.svelte';
 	import { networkColors } from '#lib/components/networks/colors.js';
-	import Block from '#lib/components/ui/Block.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
-	import Facts from '#lib/components/ui/Facts.svelte';
-	import Section from '#lib/components/ui/Section.svelte';
+	import List from '#lib/components/ui/List.svelte';
+	import PageHeader from '#lib/components/ui/PageHeader.svelte';
+	import Row from '#lib/components/ui/Row.svelte';
 
 	const overview = poll(() => api.get<NetworksOverview>('/networks'), 10000);
 	const settings = poll(() => api.get<InternetOverview>('/internet'), 60000);
-
-	let editingConnection = $state(false);
+	const devices = poll(() => api.get<Device[]>('/devices'), 15000);
 
 	let editing = $state<string | 'new' | null>(null);
 	let selectedPort = $state<string | null>(null);
+	let internetOpen = $state(false);
 
 	const networks = $derived(overview.data?.networks ?? []);
 	const ports = $derived(overview.data?.ports ?? []);
-	const wan = $derived(live.snapshot?.wan);
-	const internet = $derived(live.snapshot?.internet);
+	const snapshot = $derived(live.snapshot);
 	const editingNetwork = $derived(
 		editing === 'new' ? 'new' : (networks.find((n) => n.id === editing) ?? null)
 	);
 
-	function summary(network: Network) {
-		const parts = [network.address ?? 'No address'];
+	const names = (items: string[]) =>
+		items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+
+	function detail(network: Network) {
+		const count = devices.data?.filter((d) => d.online && d.network === network.id).length ?? 0;
+		const parts = [
+			network.address?.split('/')[0] ?? 'No address',
+			`${count} ${count === 1 ? 'device' : 'devices'}`
+		];
+		if (network.wifi.length) parts.push(`${network.wifi.join(', ')} Wi-Fi`);
 		if (!network.internet) parts.push('no internet');
-		if (!network.trusted) parts.push('kept apart');
+		else if (!network.trusted) parts.push('kept apart');
 		return parts.join(' · ');
 	}
 
-	function joins(network: Network) {
-		const portLabels = ports.filter((p) => network.ports.includes(p.name)).map((p) => p.label);
-		const parts = [...network.wifi, ...portLabels];
-		return parts.length ? parts.join(', ') : 'Nothing connects to it yet';
-	}
+	const internet = $derived.by(() => {
+		const wan = snapshot?.wan;
+		const online = snapshot?.internet.online;
+		const kind = { dhcp: 'Automatic', static: 'Fixed address', pppoe: 'PPPoE' }[
+			settings.data?.connection.kind ?? 'dhcp'
+		];
+		return {
+			detail: [kind, wan?.ipv4?.split('/')[0]].filter(Boolean).join(' · '),
+			value: !snapshot ? null : online ? `${snapshot.internet.latencyMs ?? '–'} ms` : 'Offline',
+			tone: (online ? 'muted' : 'bad') as 'muted' | 'bad'
+		};
+	});
 </script>
 
-<div class="flex items-end justify-between gap-6">
-	<div>
-		<h1 class="font-display text-[42px] leading-none font-medium">Networks</h1>
-		<p class="mt-2 text-muted">Keep groups of devices apart, and decide what each one can reach.</p>
-	</div>
-	<Button variant="primary" onclick={() => (editing = 'new')}><Plus size={17} /> New network</Button
-	>
-</div>
-
-<Section title="Your networks">
-	{#each networks as network (network.id)}
-		<button
-			type="button"
-			onclick={() => (editing = network.id)}
-			class="flex cursor-pointer items-center gap-4 bg-surface px-6 py-4 text-left transition-colors hover:bg-raised"
-		>
-			<span class="size-3 shrink-0 rounded-full" style:background={networkColors[network.color]}
-			></span>
-			<span class="flex min-w-0 flex-1 flex-col">
-				<span class="truncate text-[17px] font-medium">{network.name}</span>
-				<span class="truncate text-[13px] text-muted">{summary(network)}</span>
-			</span>
-			<span class="hidden max-w-[45%] truncate text-right text-[13px] text-muted sm:block">
-				{joins(network)}
-			</span>
-		</button>
-	{:else}
-		<Block description={overview.data ? 'No networks yet.' : 'Loading networks…'} />
-	{/each}
-</Section>
-
-{#if ports.length}
-	<Section title="Ports">
-		<div class="grid grid-cols-2 gap-[3px] md:grid-cols-4">
-			{#each ports as port (port.name)}
-				<PortTile {port} {networks} onselect={(p: Port) => (selectedPort = p.name)} />
-			{/each}
-		</div>
-	</Section>
-{/if}
-
-<Section title="Internet">
-	{#snippet actions()}
-		<Button size="sm" onclick={() => (editingConnection = true)}>Change</Button>
+<PageHeader
+	detail={networks.length
+		? `${names(networks.map((n) => n.name))}, across ${ports.length} ports.`
+		: undefined}
+>
+	{#snippet headline()}
+		{networks.length || '–'}
+		{networks.length === 1 ? 'network' : 'networks'}
 	{/snippet}
-	<Block>
-		<Facts
-			facts={[
-				{
-					label: 'Status',
-					value: !wan
-						? null
-						: internet?.online
-							? `Online for ${duration(wan.uptime)}`
-							: wan.up
-								? 'Connected, no internet'
-								: 'Disconnected',
-					tone: internet?.online ? 'good' : wan ? 'bad' : undefined
-				},
-				{ label: 'Connection type', value: wan?.proto?.toUpperCase() },
-				{ label: 'Address', value: wan?.ipv4, copy: true },
-				{ label: 'Gateway', value: wan?.gateway, copy: true },
-				{ label: 'IPv6 prefix', value: wan?.prefix6, copy: true },
-				{ label: 'DNS servers', value: wan?.dns.join(', ') },
-				{
-					label: 'Latency',
-					value: internet?.latencyMs != null ? `${internet.latencyMs} ms` : null
-				}
-			]}
-		/>
-	</Block>
-	{#if settings.data}
-		<Performance
-			qos={settings.data.qos}
-			acceleration={settings.data.acceleration}
-			onsaved={() => settings.refresh()}
-		/>
+	{#snippet action()}
+		<Button variant="primary" onclick={() => (editing = 'new')}
+			><Plus size={17} /> New network</Button
+		>
+	{/snippet}
+</PageHeader>
+
+<div class="flex max-w-[860px] flex-col gap-10">
+	<List>
+		{#each networks as network (network.id)}
+			<Row title={network.name} detail={detail(network)} onclick={() => (editing = network.id)}>
+				{#snippet leading()}
+					<span class="size-3 rounded-full" style:background={networkColors[network.color]}></span>
+				{/snippet}
+			</Row>
+		{/each}
+	</List>
+
+	{#if ports.length}
+		<List label="Ports">
+			<PortStrip
+				{ports}
+				{networks}
+				wan={snapshot?.wan.device ?? null}
+				onselect={(port: Port) => (selectedPort = port.name)}
+			/>
+		</List>
 	{/if}
-</Section>
+
+	<List>
+		<Row
+			title="Internet"
+			detail={internet.detail}
+			value={internet.value}
+			tone={internet.tone}
+			onclick={() => (internetOpen = true)}
+		/>
+	</List>
+</div>
 
 <NetworkSheet
 	network={editingNetwork}
@@ -140,10 +127,9 @@
 	onsaved={() => overview.refresh()}
 />
 
-<ConnectionSheet
-	open={editingConnection}
-	connection={settings.data?.connection ?? null}
-	ports={settings.data?.ports ?? []}
-	onclose={() => (editingConnection = false)}
+<InternetSheet
+	settings={settings.data}
+	open={internetOpen}
+	onclose={() => (internetOpen = false)}
 	onsaved={() => settings.refresh()}
 />

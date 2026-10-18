@@ -1,4 +1,5 @@
 .vm/
 .sdk/
+.screenshots/
 dist/
 daemon/target/

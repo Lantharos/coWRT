@@ -10,16 +10,17 @@
 		VpnOverview
 	} from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Ddns from '#lib/components/access/Ddns.svelte';
+	import AddressSheet from '#lib/components/access/AddressSheet.svelte';
 	import ForwardSheet from '#lib/components/access/ForwardSheet.svelte';
-	import Reachability from '#lib/components/access/Reachability.svelte';
-	import Upnp from '#lib/components/access/Upnp.svelte';
-	import VpnProvider from '#lib/components/access/VpnProvider.svelte';
-	import VpnServer from '#lib/components/access/VpnServer.svelte';
-	import Block from '#lib/components/ui/Block.svelte';
+	import ProviderSheet from '#lib/components/access/ProviderSheet.svelte';
+	import VpnSheet from '#lib/components/access/VpnSheet.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
-	import Section from '#lib/components/ui/Section.svelte';
+	import List from '#lib/components/ui/List.svelte';
+	import PageHeader from '#lib/components/ui/PageHeader.svelte';
+	import Row from '#lib/components/ui/Row.svelte';
 	import Toggle from '#lib/components/ui/Toggle.svelte';
+
+	type Panel = 'vpn' | 'provider' | 'address';
 
 	const sharing = poll(() => api.get<SharingOverview>('/sharing'), 30000);
 	const devices = poll(() => api.get<Device[]>('/devices'), 30000);
@@ -27,89 +28,171 @@
 	const networks = poll(() => api.get<NetworksOverview>('/networks'), 60000);
 
 	let editing = $state<string | 'new' | null>(null);
+	let panel = $state<Panel | null>(null);
+	let testing = $state(false);
+	let reachable = $state<boolean | null>(null);
 
+	const reach = $derived(sharing.data?.reach);
 	const forwards = $derived(sharing.data?.forwards ?? []);
 	const deviceName = (mac: string) => devices.data?.find((d) => d.mac === mac)?.name ?? mac;
 	const editingForward = $derived(
 		editing === 'new' ? 'new' : (forwards.find((f) => f.id === editing) ?? null)
 	);
+	const protocolLabel = { tcp: 'TCP', udp: 'UDP', both: 'TCP and UDP' };
 
-	async function setEnabled(forward: Forward, enabled: boolean) {
+	const open = $derived(reachable ?? (reach ? !reach.behindNat : null));
+	const vpnValue = $derived.by(() => {
+		const server = vpn.data?.server;
+		if (!server?.enabled) return 'Off';
+		return `${server.peers.length} ${server.peers.length === 1 ? 'device' : 'devices'}`;
+	});
+	const providerValue = $derived.by(() => {
+		const client = vpn.data?.client;
+		if (!client?.enabled) return 'Off';
+		const names = (networks.data?.networks ?? [])
+			.filter((n) => client.networks.includes(n.id))
+			.map((n) => n.name);
+		return names.length ? `${client.name} · ${names.join(', ')}` : client.name;
+	});
+
+	async function test() {
+		testing = true;
+		try {
+			reachable = (await api.post<{ open: boolean }>('/forwards/check', {})).open;
+		} catch (err) {
+			toasts.error(err);
+		} finally {
+			testing = false;
+		}
+	}
+
+	async function setForward(forward: Forward, enabled: boolean) {
 		try {
 			await api.put(`/forwards/${forward.id}`, { ...forward, enabled });
-			toasts.show(enabled ? `${forward.name} is open` : `${forward.name} is closed`);
 		} catch (err) {
 			toasts.error(err);
 		}
 		sharing.refresh();
 	}
 
-	const protocolLabel = { tcp: 'TCP', udp: 'UDP', both: 'TCP and UDP' };
+	async function setUpnp(enabled: boolean) {
+		if (enabled && !sharing.data?.upnp.installed) toasts.show('Installing, this takes a moment');
+		try {
+			await api.put('/upnp', { enabled });
+		} catch (err) {
+			toasts.error(err);
+		}
+		sharing.refresh();
+	}
 </script>
 
-<div class="flex items-end justify-between gap-6">
-	<div>
-		<h1 class="font-display text-[42px] leading-none font-medium">Access</h1>
-		<p class="mt-2 text-muted">Let things on the internet reach home, safely.</p>
-	</div>
-	<Button variant="primary" onclick={() => (editing = 'new')}>
-		<Plus size={17} /> Port forward
-	</Button>
-</div>
-
-{#if sharing.data}
-	<Section title="From outside">
-		<Reachability reach={sharing.data.reach} />
-		<Ddns ddns={sharing.data.ddns} onsaved={() => sharing.refresh()} />
-	</Section>
-
-	{#if vpn.data}
-		<Section title="VPN">
-			<VpnServer server={vpn.data.server} onsaved={() => vpn.refresh()} />
-			<VpnProvider
-				provider={vpn.data.client}
-				networks={networks.data?.networks ?? []}
-				onsaved={() => vpn.refresh()}
-			/>
-		</Section>
-	{/if}
-
-	<Section title="Port forwards">
-		{#each forwards as forward (forward.id)}
-			<div class="flex items-center gap-4 bg-surface pr-6 transition-colors hover:bg-raised">
-				<button
-					type="button"
-					onclick={() => (editing = forward.id)}
-					class="flex min-w-0 flex-1 cursor-pointer flex-col py-4 pl-6 text-left"
-				>
-					<span class="truncate text-[17px] font-medium {forward.enabled ? '' : 'text-muted'}">
-						{forward.name}
-					</span>
-					<span class="truncate text-[13px] text-muted">
-						{protocolLabel[forward.protocol]}
-						{forward.external} → {deviceName(forward.mac)}{forward.internal
-							? `:${forward.internal}`
-							: ''}
-					</span>
-				</button>
-				<Toggle
-					checked={forward.enabled}
-					label="Open {forward.name}"
-					onchange={(on) => setEnabled(forward, on)}
-				/>
-			</div>
+<PageHeader
+	detail={!reach
+		? undefined
+		: open
+			? `Your public address is ${reach.publicIp}.`
+			: "There's another router in front of this one, so port forwards and the VPN only work from inside."}
+>
+	{#snippet headline()}
+		{#if !reach}
+			<span class="text-muted">Checking how the internet sees you</span>
+		{:else if open}
+			Home is <span class="text-accent">reachable</span> from outside
 		{:else}
-			<Block description="Nothing is forwarded. Add one when a game or server needs it." />
+			Home <span class="text-danger">can't be reached</span> from outside
+		{/if}
+	{/snippet}
+	{#snippet action()}
+		<Button onclick={test} busy={testing}>Test again</Button>
+	{/snippet}
+</PageHeader>
+
+<div class="flex max-w-[860px] flex-col gap-10">
+	<List>
+		<Row
+			title="VPN"
+			detail="Reach home from your phone and laptop"
+			value={vpnValue}
+			onclick={() => (panel = 'vpn')}
+		/>
+		<Row
+			title="VPN provider"
+			detail="Send whole networks through a VPN"
+			value={providerValue}
+			onclick={() => (panel = 'provider')}
+		/>
+		<Row
+			title="Your own address"
+			detail="A hostname that always points home"
+			value={sharing.data?.ddns.enabled ? sharing.data.ddns.hostname : 'Off'}
+			onclick={() => (panel = 'address')}
+		/>
+	</List>
+
+	<List label="Port forwards">
+		{#snippet aside()}
+			<Button size="sm" variant="ghost" onclick={() => (editing = 'new')}>
+				<Plus size={15} /> Add
+			</Button>
+		{/snippet}
+		{#each forwards as forward (forward.id)}
+			<Row
+				title={forward.name}
+				detail="{protocolLabel[forward.protocol]} {forward.external} to {deviceName(forward.mac)}"
+				dimmed={!forward.enabled}
+				onclick={() => (editing = forward.id)}
+			>
+				{#snippet trailing()}
+					<Toggle
+						checked={forward.enabled}
+						label="Open {forward.name}"
+						onchange={(on) => setForward(forward, on)}
+					/>
+				{/snippet}
+			</Row>
 		{/each}
-		<Upnp upnp={sharing.data.upnp} onsaved={() => sharing.refresh()} />
-	</Section>
-{:else}
-	<Block description="Checking how the internet sees you…" />
-{/if}
+
+		{#if sharing.data}
+			<Row
+				title="Let apps open ports"
+				detail={sharing.data.upnp.enabled && sharing.data.upnp.mappings.length
+					? `${sharing.data.upnp.mappings.length} open right now`
+					: 'UPnP and NAT-PMP, for games and consoles'}
+			>
+				{#snippet trailing()}
+					<Toggle
+						checked={sharing.data!.upnp.enabled}
+						label="Let apps open ports"
+						onchange={setUpnp}
+					/>
+				{/snippet}
+			</Row>
+		{/if}
+	</List>
+</div>
 
 <ForwardSheet
 	forward={editingForward}
 	devices={devices.data ?? []}
 	onclose={() => (editing = null)}
+	onsaved={() => sharing.refresh()}
+/>
+<VpnSheet
+	server={vpn.data?.server ?? null}
+	open={panel === 'vpn'}
+	onclose={() => (panel = null)}
+	onsaved={() => vpn.refresh()}
+/>
+<ProviderSheet
+	provider={vpn.data?.client ?? null}
+	networks={networks.data?.networks ?? []}
+	open={panel === 'provider'}
+	onclose={() => (panel = null)}
+	onsaved={() => vpn.refresh()}
+/>
+<AddressSheet
+	ddns={sharing.data?.ddns ?? null}
+	open={panel === 'address'}
+	onclose={() => (panel = null)}
 	onsaved={() => sharing.refresh()}
 />
