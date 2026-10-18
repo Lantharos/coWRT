@@ -1,5 +1,8 @@
 pub mod reach;
+mod suffixes;
 pub mod upnp;
+
+pub use suffixes::learn;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -10,6 +13,7 @@ use crate::platform::config::uci::{self, Section};
 use crate::platform::ubus::{self, Ubus};
 
 const PREFIX: &str = "cw_pf_";
+const PREFIX_V6: &str = "cw_pf_v6_";
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -59,6 +63,9 @@ pub struct Forward {
 	pub internal: Option<String>,
 	pub enabled: bool,
 	pub address: Option<String>,
+	pub ipv6: bool,
+	#[serde(skip)]
+	pub suffixes: Vec<String>,
 }
 
 fn ports(value: &str) -> Option<(u16, u16)> {
@@ -98,6 +105,8 @@ fn from_section(section: &Section, address: Option<String>) -> Forward {
 		external: section.get("external").unwrap_or_default().to_owned(),
 		internal: section.get("internal").map(str::to_owned),
 		enabled: !section.flag("disabled"),
+		ipv6: !section.list("suffix6").is_empty(),
+		suffixes: section.list("suffix6"),
 		address,
 	}
 }
@@ -147,7 +156,7 @@ pub async fn store(ubus: &Ubus, id: Option<&str>, input: &ForwardInput) -> Resul
 	Ok(())
 }
 
-async fn desired(ubus: &Ubus) -> Result<Vec<(String, Value)>, ubus::Error> {
+async fn desired(ubus: &Ubus) -> Result<Vec<(String, &'static str, Value)>, ubus::Error> {
 	let forwards = list(ubus).await?;
 	let subnets = Layout::load(ubus).await?.subnets();
 	Ok(forwards
@@ -158,18 +167,34 @@ async fn desired(ubus: &Ubus) -> Result<Vec<(String, Value)>, ubus::Error> {
 			let address = forward.address.as_deref()?;
 			let ip = address.parse().ok()?;
 			let (zone, _) = subnets.iter().find(|(_, cidr)| cidr.contains(ip))?;
+			let port = forward.internal.clone().unwrap_or_else(|| forward.external.clone());
 			let redirect = json!({
 				"name": forward.name,
 				"src": "wan",
 				"src_dport": forward.external,
 				"dest": zone,
 				"dest_ip": address,
-				"dest_port": forward.internal.clone().unwrap_or_else(|| forward.external.clone()),
+				"dest_port": port,
 				"proto": forward.protocol.uci(),
 				"target": "DNAT",
 			});
-			Some((format!("{PREFIX}{index}"), redirect))
+			let mut rules = vec![(format!("{PREFIX}{index}"), "redirect", redirect)];
+			if !forward.suffixes.is_empty() {
+				let pinhole = json!({
+					"name": format!("{} (IPv6)", forward.name),
+					"src": "wan",
+					"dest": zone,
+					"family": "ipv6",
+					"dest_ip": forward.suffixes,
+					"dest_port": port,
+					"proto": forward.protocol.uci(),
+					"target": "ACCEPT",
+				});
+				rules.push((format!("{PREFIX_V6}{index}"), "rule", pinhole));
+			}
+			Some(rules)
 		})
+		.flatten()
 		.collect())
 }
 
@@ -188,9 +213,10 @@ pub async fn sync(ubus: &Ubus) -> Result<bool, ubus::Error> {
 		.filter(|s| s.name.starts_with(PREFIX))
 		.collect();
 	let matches = existing.len() == wanted.len()
-		&& wanted.iter().all(|(name, values)| {
+		&& wanted.iter().all(|(name, kind, values)| {
 			existing.iter().any(|section| {
 				section.name == *name
+					&& section.kind == *kind
 					&& values.as_object().is_some_and(|map| {
 						map.iter()
 							.all(|(key, value)| section.values.get(key).map(as_uci) == Some(as_uci(value)))
@@ -203,8 +229,8 @@ pub async fn sync(ubus: &Ubus) -> Result<bool, ubus::Error> {
 	for section in &existing {
 		uci::delete(ubus, "firewall", &section.name).await?;
 	}
-	for (name, redirect) in wanted {
-		uci::add(ubus, "firewall", "redirect", Some(&name), redirect).await?;
+	for (name, kind, values) in wanted {
+		uci::add(ubus, "firewall", kind, Some(&name), values).await?;
 	}
 	Ok(true)
 }

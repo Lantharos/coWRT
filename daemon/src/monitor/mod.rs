@@ -1,6 +1,6 @@
 mod connectivity;
 mod history;
-mod ledger;
+pub mod ledger;
 mod proc;
 mod traffic;
 pub mod wan;
@@ -133,6 +133,10 @@ impl Monitor {
 			.collect()
 	}
 
+	pub async fn usage_days(&self, macs: &[String]) -> Vec<ledger::DayUsage> {
+		self.ledger.lock().await.days(macs)
+	}
+
 	pub async fn save(&self) {
 		self.ledger.lock().await.save().await;
 	}
@@ -211,6 +215,9 @@ pub fn spawn(state: AppState) {
 			}
 			if tick % 60 == 30 {
 				crate::wifi::turn_off_expired(&state).await;
+			}
+			if tick % 60 == 45 {
+				crate::access::forwards::learn(&state).await;
 			}
 			if tick.is_multiple_of(60) {
 				utc_offset = wan::utc_offset(&state.ubus).await.unwrap_or(utc_offset);

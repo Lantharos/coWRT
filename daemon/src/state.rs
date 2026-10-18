@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::activity::Activity;
 use crate::http::Sessions;
 use crate::internet::speedtest::SpeedTest;
 use crate::monitor::Monitor;
@@ -20,6 +21,7 @@ pub struct AppState {
 	pub monitor: Arc<Monitor>,
 	pub applier: Arc<Applier>,
 	pub speedtest: Arc<SpeedTest>,
+	pub activity: Arc<Activity>,
 }
 
 impl AppState {
@@ -31,6 +33,7 @@ impl AppState {
 			monitor: Arc::default(),
 			applier: Arc::default(),
 			speedtest: Arc::default(),
+			activity: Arc::default(),
 		}
 	}
 }

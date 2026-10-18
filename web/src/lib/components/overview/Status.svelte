@@ -16,7 +16,13 @@
 		const { wan, internet } = snapshot;
 		switch (state) {
 			case 'online':
-				return `Up for ${duration(wan.uptime)}${internet.latencyMs !== null ? ` · ${internet.latencyMs} ms to the internet` : ''}`;
+				return [
+					`Up for ${duration(wan.uptime)}`,
+					internet.latencyMs !== null && `${internet.latencyMs} ms to the internet`,
+					internet.online6 ? 'IPv4 and IPv6' : 'IPv4 only'
+				]
+					.filter(Boolean)
+					.join(' · ');
 			case 'unreachable':
 				return 'Your router has an address, but nothing on the internet answers. This is usually your provider.';
 			case 'down':

@@ -40,6 +40,7 @@ pub fn routes() -> Router<AppState> {
 		.route("/internet", get(internet::overview))
 		.route("/internet/connection", put(internet::update_connection))
 		.route("/internet/qos", put(internet::update_qos))
+		.route("/internet/ipv6", put(internet::update_ipv6))
 		.route("/internet/acceleration", put(internet::update_acceleration))
 		.route(
 			"/internet/speedtest",
@@ -53,6 +54,10 @@ pub fn routes() -> Router<AppState> {
 		.route("/ddns", put(access::sharing::set_ddns))
 		.route("/protection", get(protection::overview).put(protection::update))
 		.route("/protection/dns", put(protection::update_dns))
+		.route(
+			"/protection/activity",
+			get(protection::activity).put(protection::set_activity),
+		)
 		.route("/vpn", get(access::vpn::overview))
 		.route("/vpn/server", put(access::vpn::update_server))
 		.route("/vpn/server/peers", post(access::vpn::add_peer))
@@ -64,16 +69,17 @@ pub fn routes() -> Router<AppState> {
 		.route("/ports/{name}", put(networks::update_port))
 		.route("/people", get(devices::people::list).post(devices::people::create))
 		.route("/people/{id}", put(devices::people::update).delete(devices::people::delete))
+		.route("/people/{id}/activity", get(devices::activity::person))
 		.route("/devices", get(devices::list))
 		.route("/devices/{mac}", axum::routing::patch(devices::update))
 		.route("/devices/{mac}/disconnect", post(devices::disconnect))
 		.route("/devices/{mac}/wake", post(networks::lan::wake))
+		.route("/devices/{mac}/activity", get(devices::activity::device))
 		.route("/lan", get(networks::lan::overview))
 		.route("/lan/names", post(networks::lan::create_name))
 		.route("/lan/names/{id}", axum::routing::delete(networks::lan::delete_name))
 		.route("/lan/routes", post(networks::lan::create_route))
 		.route("/lan/routes/{id}", axum::routing::delete(networks::lan::delete_route))
-		.route("/lan/ipv6", put(networks::lan::set_ipv6))
 		.route("/wifi", get(wifi::overview))
 		.route("/wifi/networks", post(wifi::create))
 		.route("/wifi/networks/{id}", put(wifi::update).delete(wifi::delete))

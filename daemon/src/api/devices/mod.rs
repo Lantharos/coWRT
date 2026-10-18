@@ -1,3 +1,4 @@
+pub mod activity;
 mod controls;
 pub mod people;
 pub mod reservation;

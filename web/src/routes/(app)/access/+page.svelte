@@ -157,7 +157,9 @@
 				title={forward.name}
 				icon={ArrowRightLeft}
 				tint={forward.enabled ? on : undefined}
-				detail="{protocolLabel[forward.protocol]} {forward.external} to {deviceName(forward.mac)}"
+				detail="{protocolLabel[forward.protocol]} {forward.external} to {deviceName(
+					forward.mac
+				)}{forward.ipv6 ? ', IPv6 too' : ''}"
 				dimmed={!forward.enabled}
 				onclick={() => (editing = forward.id)}
 			>

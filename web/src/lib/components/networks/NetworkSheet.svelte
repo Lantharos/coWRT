@@ -50,11 +50,17 @@
 			address: next <= 255 ? `10.0.${next}.1/24` : '',
 			dhcp: { enabled: true, start: 100, limit: 150, leaseTime: '12h' },
 			trusted: false,
-			internet: true
+			internet: true,
+			ipv6: true
 		};
 	}
 
 	const key = $derived(network === 'new' ? 'new' : network?.id);
+	const ipv6Hint = $derived.by(() => {
+		if (!form.ipv6) return undefined;
+		const prefixes = network && network !== 'new' ? network.ipv6.prefixes : [];
+		return prefixes.length ? prefixes.join(' and ') : 'A /64 from your provider and a local prefix';
+	});
 
 	$effect.pre(() => {
 		if (!key) return;
@@ -71,7 +77,8 @@
 							address: network.address ?? '',
 							dhcp: network.dhcp ?? { enabled: false, start: 100, limit: 150, leaseTime: '12h' },
 							trusted: network.trusted,
-							internet: network.internet
+							internet: network.internet,
+							ipv6: network.ipv6.enabled
 						};
 			start = String(form.dhcp.start);
 			limit = String(form.dhcp.limit);
@@ -169,6 +176,9 @@
 			</Setting>
 			<Setting title="Hand out addresses" hint={pool && form.dhcp.enabled ? pool : undefined}>
 				<Toggle bind:checked={form.dhcp.enabled} label="Hand out addresses" />
+			</Setting>
+			<Setting title="IPv6" hint={ipv6Hint}>
+				<Toggle bind:checked={form.ipv6} label="IPv6" />
 			</Setting>
 		</div>
 

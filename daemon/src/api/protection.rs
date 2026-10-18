@@ -1,6 +1,8 @@
 use axum::Json;
 use axum::extract::State;
+use serde::{Deserialize, Serialize};
 
+use crate::activity::{Bucket, Site};
 use crate::http::{ApiError, ApiResult};
 use crate::platform::config::uci;
 use crate::protection::{self, Settings, View, private_dns};
@@ -54,4 +56,39 @@ pub async fn update_dns(State(state): State<AppState>, Json(input): Json<private
 		})
 		.await?;
 	Ok(())
+}
+
+const TOP_BLOCKED: usize = 10;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityOverview {
+	enabled: bool,
+	buckets: Vec<Bucket>,
+	top_blocked: Vec<Site>,
+}
+
+pub async fn activity(State(state): State<AppState>) -> ApiResult<ActivityOverview> {
+	Ok(Json(ActivityOverview {
+		enabled: protection::activity_enabled(&state.ubus).await?,
+		buckets: state.activity.buckets(),
+		top_blocked: state.activity.top_blocked(TOP_BLOCKED),
+	}))
+}
+
+#[derive(Deserialize)]
+pub struct ActivityInput {
+	enabled: bool,
+}
+
+pub async fn set_activity(State(state): State<AppState>, Json(input): Json<ActivityInput>) -> Result<(), ApiError> {
+	state
+		.applier
+		.apply(&state.ubus, &["cowrt"], None, async |ubus| {
+			Ok(protection::set_activity(ubus, input.enabled).await?)
+		})
+		.await?;
+	protection::apply(&state.ubus)
+		.await
+		.map_err(|err| ApiError::conflict(format!("Couldn't restart the resolvers: {err}")))
 }

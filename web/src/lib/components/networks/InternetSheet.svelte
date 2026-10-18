@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { api } from '#lib/api/client.js';
 	import { applyChange } from '#lib/api/apply.js';
+	import { live } from '#lib/api/live.svelte.js';
 	import type {
 		Acceleration,
 		Applied,
@@ -40,6 +41,8 @@
 	let download = $state('');
 	let upload = $state('');
 	let advanced = $state(false);
+	let ipv6 = $state(true);
+	let prefixSize = $state('auto');
 	let busy = $state<string | null>(null);
 
 	$effect.pre(() => {
@@ -61,6 +64,8 @@
 			download = settings.qos.download ? String(settings.qos.download / 1000) : '';
 			upload = settings.qos.upload ? String(settings.qos.upload / 1000) : '';
 			advanced = Boolean(c.vlan || c.mac || c.dns.length);
+			ipv6 = settings.ipv6.enabled;
+			prefixSize = settings.ipv6.prefix ? String(settings.ipv6.prefix) : 'auto';
 		});
 	});
 
@@ -111,6 +116,42 @@
 			await applyChange(
 				() => api.put<Applied>('/internet/connection', connection),
 				'Connection saved'
+			);
+			onsaved();
+		} catch (err) {
+			toasts.error(err);
+		} finally {
+			busy = null;
+		}
+	}
+
+	const ipv6Changed = $derived(
+		!!settings &&
+			(ipv6 !== settings.ipv6.enabled ||
+				(ipv6 && prefixSize !== (settings.ipv6.prefix ? String(settings.ipv6.prefix) : 'auto')))
+	);
+	const ipv6Status = $derived.by(() => {
+		const wan = live.snapshot?.wan;
+		if (!ipv6) return undefined;
+		if (wan?.prefix6) return `Got ${wan.prefix6}`;
+		if (wan?.ipv6) return `${wan.ipv6.split('/')[0]}, no prefix for your networks`;
+		return "Your provider isn't offering it right now";
+	});
+	const prefixSizes = [
+		{ value: 'auto', label: 'Automatic' },
+		...[48, 56, 60, 64].map((size) => ({ value: String(size), label: `/${size}` }))
+	];
+
+	async function saveIpv6() {
+		busy = 'ipv6';
+		try {
+			await applyChange(
+				() =>
+					api.put<Applied>('/internet/ipv6', {
+						enabled: ipv6,
+						prefix: prefixSize === 'auto' ? null : Number(prefixSize)
+					}),
+				ipv6 ? 'IPv6 settings saved' : 'IPv6 is off'
 			);
 			onsaved();
 		} catch (err) {
@@ -198,6 +239,23 @@
 			</div>
 
 			<div class="flex flex-col divide-y divide-line">
+				<Setting title="IPv6" hint={ipv6Status}>
+					<Toggle bind:checked={ipv6} label="IPv6" />
+				</Setting>
+				{#if ipv6}
+					<Setting title="Prefix size" hint="Ask your provider for this much">
+						<div class="w-36">
+							<Select bind:value={prefixSize} options={prefixSizes} />
+						</div>
+					</Setting>
+				{/if}
+				{#if ipv6Changed}
+					<div class="py-3">
+						<Button variant="primary" class="w-full" onclick={saveIpv6} busy={busy === 'ipv6'}>
+							Save IPv6
+						</Button>
+					</div>
+				{/if}
 				<Setting title="Smart queue" hint="Keeps calls smooth during big downloads">
 					<Toggle bind:checked={queue} label="Smart queue" />
 				</Setting>

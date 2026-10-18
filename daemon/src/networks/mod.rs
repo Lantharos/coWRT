@@ -6,7 +6,10 @@ pub mod lan;
 mod layout;
 pub mod ports;
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 pub use address::Cidr;
 pub use adopt::adopt;
@@ -41,6 +44,14 @@ pub struct Network {
 	pub ports: Vec<String>,
 	pub tagged: Vec<String>,
 	pub wifi: Vec<String>,
+	pub ipv6: NetworkIpv6,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkIpv6 {
+	pub enabled: bool,
+	pub prefixes: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -49,8 +60,28 @@ pub struct Overview {
 	pub ports: Vec<Port>,
 }
 
+async fn assigned_prefixes(ubus: &Ubus) -> HashMap<String, Vec<String>> {
+	let dump = ubus.call("network.interface", "dump", json!({})).await.unwrap_or_default();
+	dump.get("interface")
+		.and_then(Value::as_array)
+		.into_iter()
+		.flatten()
+		.filter_map(|interface| {
+			let id = interface.get("interface")?.as_str()?.to_owned();
+			let prefixes = interface
+				.get("ipv6-prefix-assignment")?
+				.as_array()?
+				.iter()
+				.filter_map(|p| Some(format!("{}/{}", p.get("address")?.as_str()?, p.get("mask")?.as_u64()?)))
+				.collect();
+			Some((id, prefixes))
+		})
+		.collect()
+}
+
 pub async fn overview(ubus: &Ubus) -> Result<Overview, ubus::Error> {
 	let layout = Layout::load(ubus).await?;
+	let assigned = assigned_prefixes(ubus).await;
 	let mut networks = Vec::new();
 	for managed in layout.managed() {
 		let id = &managed.name;
@@ -81,6 +112,10 @@ pub async fn overview(ubus: &Ubus) -> Result<Overview, ubus::Error> {
 			ports: members.iter().filter(|m| m.untagged).map(|m| m.port.clone()).collect(),
 			tagged: members.iter().filter(|m| !m.untagged).map(|m| m.port.clone()).collect(),
 			wifi,
+			ipv6: NetworkIpv6 {
+				enabled: layout.interface(id).is_some_and(|i| i.get("ip6assign").is_some()),
+				prefixes: assigned.get(id.as_str()).cloned().unwrap_or_default(),
+			},
 		});
 	}
 	networks.sort_by_key(|network| (!network.primary, network.vlan));

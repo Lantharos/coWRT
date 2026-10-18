@@ -2,11 +2,11 @@ use std::net::Ipv4Addr;
 
 use axum::Json;
 use axum::extract::{Path, State};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::devices::{self, normalize_mac};
 use crate::http::{ApiError, ApiResult};
-use crate::networks::lan::{self, Ipv6, LocalName, LocalNameInput, Route, RouteInput};
+use crate::networks::lan::{self, LocalName, LocalNameInput, Route, RouteInput};
 use crate::platform::config::Applied;
 use crate::state::AppState;
 
@@ -15,7 +15,6 @@ pub struct Overview {
 	domain: Option<String>,
 	names: Vec<LocalName>,
 	routes: Vec<Route>,
-	ipv6: Ipv6,
 }
 
 pub async fn overview(State(state): State<AppState>) -> ApiResult<Overview> {
@@ -24,7 +23,6 @@ pub async fn overview(State(state): State<AppState>) -> ApiResult<Overview> {
 		domain: lan::domain(ubus).await?,
 		names: lan::names(ubus).await?,
 		routes: lan::routes(ubus).await?,
-		ipv6: lan::ipv6_status(ubus).await?,
 	}))
 }
 
@@ -61,21 +59,6 @@ pub async fn delete_route(State(state): State<AppState>, Path(id): Path<String>)
 		.applier
 		.apply(&state.ubus, &["network"], None, async |ubus| {
 			lan::delete_route(ubus, &id).await
-		})
-		.await?;
-	Ok(Json(applied))
-}
-
-#[derive(Deserialize)]
-pub struct Ipv6Input {
-	enabled: bool,
-}
-
-pub async fn set_ipv6(State(state): State<AppState>, Json(input): Json<Ipv6Input>) -> ApiResult<Applied> {
-	let applied = state
-		.applier
-		.apply(&state.ubus, &["network", "dhcp"], None, async |ubus| {
-			lan::set_ipv6(ubus, input.enabled).await
 		})
 		.await?;
 	Ok(Json(applied))

@@ -12,6 +12,7 @@
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import Setting from '#lib/components/ui/Setting.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
+	import ActivityView from './ActivityView.svelte';
 	import Avatar from './Avatar.svelte';
 
 	type Props = {
@@ -156,6 +157,8 @@
 					/>
 				</Setting>
 			</div>
+
+			<ActivityView source="/people/{existing.id}/activity" />
 
 			<div class="flex flex-col">
 				<h3 class="pb-1 text-[15px]">Devices</h3>

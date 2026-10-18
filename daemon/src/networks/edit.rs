@@ -10,6 +10,7 @@ use crate::platform::config::uci;
 use crate::platform::ubus::{self, Ubus};
 
 pub const COLORS: [&str; 6] = ["green", "blue", "purple", "orange", "pink", "teal"];
+const IPV6_SUBNET: &str = "64";
 const RESERVED: [&str; 5] = ["wan", "wan6", "loopback", "globals", "lan"];
 
 #[derive(Deserialize)]
@@ -22,6 +23,7 @@ pub struct NetworkInput {
 	pub dhcp: Dhcp,
 	pub trusted: bool,
 	pub internet: bool,
+	pub ipv6: bool,
 }
 
 #[derive(Deserialize)]
@@ -118,9 +120,17 @@ async fn write(ubus: &Ubus, layout: &Layout, id: &str, input: &NetworkInput, add
 		move_reservations(ubus, previous, address).await?;
 	}
 	let bridge = layout.bridge_name();
-	let interface = json!({ "proto": "static", "device": format!("{bridge}.{}", input.vlan), "ipaddr": [address.to_string()], "ip6assign": "60" });
+	let interface = json!({ "proto": "static", "device": format!("{bridge}.{}", input.vlan), "ipaddr": [address.to_string()] });
 	uci::upsert(ubus, "network", "interface", id, interface).await?;
 	uci::unset(ubus, "network", id, &["netmask"]).await?;
+	if input.ipv6 {
+		let hint = if id == PRIMARY { 0 } else { input.vlan };
+		let ipv6 = json!({ "ip6assign": IPV6_SUBNET, "ip6hint": format!("{:x}", hint & 0xff) });
+		uci::set(ubus, "network", id, ipv6).await?;
+	} else {
+		uci::unset(ubus, "network", id, &["ip6assign", "ip6hint"]).await?;
+	}
+	let ipv6_service = if input.ipv6 { "server" } else { "disabled" };
 
 	match layout.vlan_of(id).and_then(|vlan| layout.vlan_section(vlan)) {
 		Some(section) => uci::set(ubus, "network", &section.name, json!({ "vlan": input.vlan.to_string() })).await?,
@@ -137,8 +147,8 @@ async fn write(ubus: &Ubus, layout: &Layout, id: &str, input: &NetworkInput, add
 		"leasetime": input.dhcp.lease_time,
 		"ignore": flag(!input.dhcp.enabled),
 		"dhcpv4": "server",
-		"dhcpv6": "server",
-		"ra": "server",
+		"dhcpv6": ipv6_service,
+		"ra": ipv6_service,
 		"ra_slaac": "1",
 		"ra_flags": ["managed-config", "other-config"],
 	});

@@ -19,7 +19,7 @@ export interface Snapshot {
 	memory: { used: number; total: number };
 	wan: Wan;
 	throughput: { rx: number; tx: number };
-	internet: { checked: boolean; online: boolean; latencyMs: number | null };
+	internet: { checked: boolean; online: boolean; latencyMs: number | null; online6: boolean };
 	usageToday: number;
 }
 
@@ -204,6 +204,7 @@ export interface Network {
 	ports: string[];
 	tagged: string[];
 	wifi: string[];
+	ipv6: { enabled: boolean; prefixes: string[] };
 }
 
 export interface NetworkInput {
@@ -214,6 +215,7 @@ export interface NetworkInput {
 	dhcp: Dhcp;
 	trusted: boolean;
 	internet: boolean;
+	ipv6: boolean;
 }
 
 export interface Port {
@@ -257,6 +259,12 @@ export interface InternetOverview {
 	ports: string[];
 	qos: SmartQueue;
 	acceleration: Acceleration;
+	ipv6: Ipv6Settings;
+}
+
+export interface Ipv6Settings {
+	enabled: boolean;
+	prefix: number | null;
 }
 
 export type ForwardProtocol = 'tcp' | 'udp' | 'both';
@@ -270,9 +278,10 @@ export interface Forward {
 	internal: string | null;
 	enabled: boolean;
 	address: string | null;
+	ipv6: boolean;
 }
 
-export type ForwardInput = Omit<Forward, 'id' | 'address'>;
+export type ForwardInput = Omit<Forward, 'id' | 'address' | 'ipv6'>;
 
 export interface Reach {
 	publicIp: string | null;
@@ -421,10 +430,32 @@ export interface LanOverview {
 	domain: string | null;
 	names: LocalName[];
 	routes: StaticRoute[];
-	ipv6: { enabled: boolean; address: string | null; prefix: string | null };
 }
 
 export interface SetupStatus {
 	needed: boolean;
 	passwordSet: boolean;
+}
+
+export interface SiteActivity {
+	domain: string;
+	lookups: number;
+	blocked: number;
+}
+
+export interface ActivityCounts {
+	lookups: number;
+	blocked: number;
+}
+
+export interface Activity {
+	days: { day: number; down: number; up: number }[];
+	sites: SiteActivity[];
+	today: ActivityCounts;
+}
+
+export interface ProtectionActivity {
+	enabled: boolean;
+	buckets: { time: number; lookups: number; blocked: number }[];
+	topBlocked: SiteActivity[];
 }

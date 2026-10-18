@@ -5,11 +5,11 @@ A modern interface for OpenWrt routers. coWRT replaces LuCI with a fast, friendl
 ## What it does
 
 - **Overview**: whether you're online, how many devices are connected, today's usage and live speed.
-- **Devices**: every device with its network, signal history and live speed. Rename it, reserve its address, wake it up, pause its internet, set quiet times, cap its speed or give it priority. Group devices under people to pause them together or give them a bedtime.
+- **Devices**: every device with its network, signal history, live speed, 30 days of usage and the sites it looked up today. Rename it, reserve its address, wake it up, pause its internet, set quiet times, cap its speed or give it priority. Group devices under people to pause them together or give them a bedtime.
 - **Wi-Fi**: networks spanning every band, which network their devices join, QR codes for joining, guest networks that turn themselves off, fast roaming and band steering, and per-radio channel, width and power with a scan for the quietest channel.
-- **Networks**: groups of devices with their own address range, ports, Wi-Fi and rules. Plus the internet connection (automatic, fixed or PPPoE, with an optional VLAN tag), a speed test that also measures lag under load, a smart queue against bufferbloat that can set itself from the speed test, acceleration, local names like `nas.lan`, static routes and IPv6.
-- **Access**: a reachability test, port forwards, automatic port forwarding (UPnP and NAT-PMP), dynamic DNS on Cloudflare, a WireGuard VPN with QR codes, and routing whole networks through a VPN provider with a kill switch.
-- **Security**: ad, tracker and threat blocking per network, an allow list, and encrypted DNS.
+- **Networks**: groups of devices with their own IPv4 range and IPv6 prefix, ports, Wi-Fi and rules. Plus the internet connection (automatic, fixed or PPPoE, with an optional VLAN tag), IPv6 with prefix delegation, a speed test that also measures lag under load, a smart queue against bufferbloat that can set itself from the speed test, acceleration, local names like `nas.lan` and static routes.
+- **Access**: a reachability test, port forwards that also open over IPv6, automatic port forwarding (UPnP and NAT-PMP), dynamic DNS on Cloudflare, a WireGuard VPN with QR codes, and routing whole networks through a VPN provider with a kill switch.
+- **Security**: ad, tracker and threat blocking per network with a running count of what was blocked, an allow list, and encrypted DNS.
 - **System**: health charts, router name and time zone, password, backups, firmware, restarts, logs and coWRT updates.
 
 Press ⌘K (or Ctrl+K, or /) anywhere to jump to a device, person, network or setting. On a fresh router, coWRT starts with a short setup: a password, the Wi-Fi name and the time zone. It can be added to a phone's home screen like an app.
@@ -37,6 +37,14 @@ Changes that could cut you off, like editing a network, a port or the internet c
 ## Device rules and usage
 
 coWRT keeps its own nftables tables next to the stock firewall. Pausing a device or giving it quiet times adds rules on the forward path, speed limits are enforced on each network's interface, and priority marks connections so the smart queue (cake on the WAN) can serve them first or last. Per-device speeds and daily totals come from connection tracking, so they're counted even when acceleration is on, but limits and priority only apply to traffic the router's processor sees.
+
+## IPv6
+
+IPv6 works like IPv4 throughout. The router asks your provider for a prefix (you can pick the size) and hands each network its own /64 from it, numbered after the network's VLAN, so Guest on VLAN 10 gets `…:a::/64`. Every network also gets a local prefix that stays the same if the provider's prefix changes. Port forwards open the same ports over IPv6: coWRT learns the stable part of the device's IPv6 addresses and allows traffic to them whatever the current prefix is.
+
+## Site activity
+
+Each network's DNS lookups go through a small resolver that coWRT runs next to the main one, with or without block lists. Those resolvers log lookups to memory, and coWRT counts them per device: the sites looked up today, what was blocked, and a 24-hour graph of blocked lookups. Nothing is written to flash, the counts reset every night, and it can be switched off in Security. Daily traffic totals per device are kept for 30 days in `/etc/cowrt/usage.json`.
 
 ## Speed test
 

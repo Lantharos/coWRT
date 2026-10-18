@@ -193,3 +193,32 @@ pub async fn set_acceleration(ubus: &Ubus, mode: Acceleration) -> Result<(), Api
 	.await?;
 	Ok(())
 }
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ipv6Settings {
+	pub enabled: bool,
+	pub prefix: Option<u8>,
+}
+
+pub async fn ipv6(ubus: &Ubus) -> Result<Ipv6Settings, ubus::Error> {
+	let sections = uci::sections(ubus, "network").await?;
+	let wan6 = interface(&sections, "wan6");
+	Ok(Ipv6Settings {
+		enabled: wan6.is_some_and(|s| !s.flag("disabled")),
+		prefix: wan6.and_then(|s| s.get("reqprefix")).and_then(|p| p.parse().ok()),
+	})
+}
+
+pub async fn set_ipv6(ubus: &Ubus, input: &Ipv6Settings) -> Result<(), ApiError> {
+	if input.prefix.is_some_and(|size| !(48..=64).contains(&size)) {
+		return Err(ApiError::bad_request("Prefix sizes go from /48 to /64"));
+	}
+	let values = json!({
+		"disabled": if input.enabled { "0" } else { "1" },
+		"reqaddress": "try",
+		"reqprefix": input.prefix.map_or_else(|| "auto".to_owned(), |size| size.to_string()),
+	});
+	uci::set(ubus, "network", "wan6", values).await?;
+	Ok(())
+}

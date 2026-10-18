@@ -22,10 +22,11 @@ use crate::state::{AppState, RUNTIME_DIR, unix_now};
 const SECTION: &str = "protection";
 const REFRESH: Duration = Duration::from_secs(24 * 3600);
 const RETRY: Duration = Duration::from_secs(600);
-pub const PORTS: [u16; 2] = [5301, 5302];
+const ACTIVITY_SECTION: &str = "activity";
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Profile {
+	Plain,
 	Threats,
 	Everything,
 }
@@ -33,21 +34,27 @@ enum Profile {
 impl Profile {
 	fn port(self) -> u16 {
 		match self {
-			Self::Threats => PORTS[0],
-			Self::Everything => PORTS[1],
+			Self::Plain => 5300,
+			Self::Threats => 5301,
+			Self::Everything => 5302,
 		}
 	}
 
 	fn lists(self) -> &'static [List] {
 		match self {
+			Self::Plain => &[],
 			Self::Threats => &[List::Threats],
 			Self::Everything => &List::ALL,
 		}
 	}
 
-	fn conf(self) -> PathBuf {
-		PathBuf::from(RUNTIME_DIR).join("dns").join(format!("{}.conf", self.port()))
+	fn file(self, extension: &str) -> PathBuf {
+		dns_dir().join(format!("{}.{extension}", self.port()))
 	}
+}
+
+pub fn dns_dir() -> PathBuf {
+	PathBuf::from(RUNTIME_DIR).join("dns")
 }
 
 static RESOLVERS: LazyLock<Mutex<HashMap<Profile, Child>>> = LazyLock::new(Mutex::default);
@@ -107,6 +114,20 @@ pub async fn store(ubus: &Ubus, settings: &Settings) -> Result<(), ubus::Error> 
 	Ok(())
 }
 
+pub async fn activity_enabled(ubus: &Ubus) -> Result<bool, ubus::Error> {
+	let section = uci::sections_of(ubus, "cowrt", ACTIVITY_SECTION).await?.into_iter().next();
+	Ok(section.is_none_or(|s| s.get("enabled") != Some("0")))
+}
+
+pub async fn set_activity(ubus: &Ubus, enabled: bool) -> Result<(), ubus::Error> {
+	let values = json!({ "enabled": if enabled { "1" } else { "0" } });
+	uci::upsert(ubus, "cowrt", ACTIVITY_SECTION, ACTIVITY_SECTION, values).await
+}
+
+fn resolver_for(settings: &Settings, network: &str, logging: bool) -> Option<Profile> {
+	profile_of(settings, network).or(logging.then_some(Profile::Plain))
+}
+
 fn profile_of(settings: &Settings, network: &str) -> Option<Profile> {
 	if settings.ads.iter().any(|n| n == network) {
 		Some(Profile::Everything)
@@ -119,21 +140,30 @@ fn profile_of(settings: &Settings, network: &str) -> Option<Profile> {
 
 pub async fn redirects(ubus: &Ubus) -> Result<Vec<(String, u16)>, ubus::Error> {
 	let settings = load(ubus).await?;
+	let logging = activity_enabled(ubus).await?;
 	let layout = Layout::load(ubus).await?;
 	let bridge = layout.bridge_name();
 	Ok(layout
 		.managed()
 		.filter_map(|network| {
-			let profile = profile_of(&settings, &network.name)?;
+			let profile = resolver_for(&settings, &network.name, logging)?;
 			Some((format!("{bridge}.{}", layout.vlan_of(&network.name)?), profile.port()))
 		})
 		.collect())
 }
 
-async fn start(profile: Profile) -> std::io::Result<Child> {
-	Command::new("dnsmasq")
+async fn start(profile: Profile, logging: bool) -> std::io::Result<Child> {
+	let mut command = Command::new("dnsmasq");
+	if logging {
+		command.args([
+			"--log-queries=extra".to_owned(),
+			format!("--log-facility={}", profile.file("log").display()),
+			"--log-async=50".to_owned(),
+		]);
+	}
+	command
 		.arg("--keep-in-foreground")
-		.arg(format!("--conf-file={}", profile.conf().display()))
+		.arg(format!("--conf-file={}", profile.file("conf").display()))
 		.arg(format!("--port={}", profile.port()))
 		.args([
 			"--no-resolv",
@@ -143,8 +173,15 @@ async fn start(profile: Profile) -> std::io::Result<Child> {
 			"--pid-file=",
 			"--local-service",
 		])
-		.kill_on_drop(true)
 		.spawn()
+}
+
+pub async fn reopen_logs() {
+	for child in RESOLVERS.lock().await.values() {
+		if let Some(pid) = child.id() {
+			unsafe { libc::kill(pid as i32, libc::SIGUSR2) };
+		}
+	}
 }
 
 async fn ensure_lists(profile: Profile) {
@@ -157,24 +194,34 @@ async fn ensure_lists(profile: Profile) {
 
 pub async fn apply(ubus: &Ubus) -> std::io::Result<()> {
 	let settings = load(ubus).await.map_err(std::io::Error::other)?;
+	let logging = activity_enabled(ubus).await.map_err(std::io::Error::other)?;
 	let managed: Vec<String> = uci::sections_of(ubus, "cowrt", "network")
 		.await
 		.map_err(std::io::Error::other)?
 		.into_iter()
 		.map(|s| s.name)
 		.collect();
-	let wanted: Vec<Profile> = [Profile::Everything, Profile::Threats]
+	let wanted: Vec<Profile> = [Profile::Everything, Profile::Threats, Profile::Plain]
 		.into_iter()
-		.filter(|profile| managed.iter().any(|network| profile_of(&settings, network) == Some(*profile)))
+		.filter(|profile| {
+			managed
+				.iter()
+				.any(|network| resolver_for(&settings, network, logging) == Some(*profile))
+		})
 		.collect();
 
+	tokio::fs::create_dir_all(dns_dir()).await?;
 	let mut resolvers = RESOLVERS.lock().await;
-	resolvers.retain(|profile, _| wanted.contains(profile));
+	for (_, mut child) in resolvers.extract_if(|profile, _| !wanted.contains(profile)) {
+		let _ = child.kill().await;
+	}
 	for profile in wanted {
 		ensure_lists(profile).await;
-		lists::compile(profile.lists(), &settings.allow, &profile.conf()).await?;
-		resolvers.remove(&profile);
-		resolvers.insert(profile, start(profile).await?);
+		lists::compile(profile.lists(), &settings.allow, &profile.file("conf")).await?;
+		if let Some(mut previous) = resolvers.remove(&profile) {
+			let _ = previous.kill().await;
+		}
+		resolvers.insert(profile, start(profile, logging).await?);
 	}
 	drop(resolvers);
 	policy::apply(ubus).await

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::http::{ApiError, ApiResult};
 use crate::internet::qos::{self, Settings};
 use crate::internet::speedtest;
-use crate::internet::{self, Acceleration, Connection};
+use crate::internet::{self, Acceleration, Connection, Ipv6Settings};
 use crate::monitor::wan::Wan;
 use crate::networks::ports;
 use crate::platform::config::Applied;
@@ -21,6 +21,7 @@ pub struct Overview {
 	ports: Vec<String>,
 	qos: Settings,
 	acceleration: Acceleration,
+	ipv6: Ipv6Settings,
 }
 
 pub async fn overview(State(state): State<AppState>) -> ApiResult<Overview> {
@@ -29,6 +30,7 @@ pub async fn overview(State(state): State<AppState>) -> ApiResult<Overview> {
 		ports: ports::physical().await,
 		qos: qos::load(&state.ubus).await?,
 		acceleration: internet::acceleration(&state.ubus).await?,
+		ipv6: internet::ipv6(&state.ubus).await?,
 	}))
 }
 
@@ -37,6 +39,16 @@ pub async fn update_connection(State(state): State<AppState>, Json(input): Json<
 		.applier
 		.apply(&state.ubus, &["network"], ROLLBACK, async |ubus| {
 			internet::store(ubus, &input).await
+		})
+		.await?;
+	Ok(Json(applied))
+}
+
+pub async fn update_ipv6(State(state): State<AppState>, Json(input): Json<Ipv6Settings>) -> ApiResult<Applied> {
+	let applied = state
+		.applier
+		.apply(&state.ubus, &["network"], ROLLBACK, async |ubus| {
+			internet::set_ipv6(ubus, &input).await
 		})
 		.await?;
 	Ok(Json(applied))

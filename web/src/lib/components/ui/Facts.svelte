@@ -19,7 +19,7 @@
 </script>
 
 <dl class="grid grid-cols-[minmax(110px,auto)_1fr] gap-x-8 gap-y-2.5 text-[15px]">
-	{#each facts as fact (fact.label)}
+	{#each facts as fact (`${fact.label}${fact.value}`)}
 		<dt class="text-muted">{fact.label}</dt>
 		<dd
 			class="flex min-w-0 items-center gap-2 {fact.tone === 'good'

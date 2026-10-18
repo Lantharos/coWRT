@@ -13,6 +13,7 @@
 	import Sheet from '#lib/components/ui/Sheet.svelte';
 	import TextField from '#lib/components/ui/controls/TextField.svelte';
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
+	import ActivityView from './ActivityView.svelte';
 	import DeviceControls from './DeviceControls.svelte';
 	import Sparkline from '#lib/components/charts/Sparkline.svelte';
 	import { kinds, kindOf, type Kind } from './kinds';
@@ -182,6 +183,8 @@
 				</div>
 			{/if}
 
+			<ActivityView source="/devices/{device.mac}/activity" />
+
 			<DeviceControls {device} {onchange} />
 
 			<div class="flex flex-col">
@@ -241,7 +244,11 @@
 			<Facts
 				facts={[
 					{ label: 'IP address', value: device.ipv4, copy: true },
-					...(device.ipv6.length ? [{ label: 'IPv6', value: device.ipv6[0], copy: true }] : []),
+					...device.ipv6.map((address, index) => ({
+						label: index ? '' : 'IPv6',
+						value: address,
+						copy: true
+					})),
 					{ label: 'MAC address', value: device.mac.toUpperCase(), copy: true },
 					{ label: 'Hostname', value: device.hostname },
 					...(connection?.kind === 'wifi'

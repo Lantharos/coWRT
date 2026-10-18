@@ -1,4 +1,5 @@
 mod access;
+mod activity;
 mod api;
 mod devices;
 mod http;
@@ -56,6 +57,7 @@ async fn main() {
 	monitor::spawn(state.clone());
 	access::ddns::spawn(state.clone());
 	protection::spawn(state.clone());
+	activity::spawn(state.clone());
 
 	let listener = tokio::net::TcpListener::bind(args.listen)
 		.await
@@ -69,6 +71,7 @@ async fn main() {
 	.await
 	.expect("server error");
 	state.monitor.save().await;
+	state.activity.save().await;
 }
 
 async fn shutdown() {

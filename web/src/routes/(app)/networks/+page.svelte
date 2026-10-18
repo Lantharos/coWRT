@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		Earth,
 		Gauge,
 		Globe,
 		House,
@@ -17,7 +16,6 @@
 	import { poll } from '#lib/api/poll.svelte.js';
 	import type {
 		Device,
-		Applied,
 		InternetOverview,
 		LanOverview,
 		Network,
@@ -28,14 +26,12 @@
 	import { mbps } from '#lib/components/networks/grade.js';
 	import NamesSheet from '#lib/components/networks/NamesSheet.svelte';
 	import RoutesSheet from '#lib/components/networks/RoutesSheet.svelte';
-	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
-	import { applyChange } from '#lib/api/apply.js';
-	import { toasts } from '#lib/toast.svelte.js';
 	import InternetSheet from '#lib/components/networks/InternetSheet.svelte';
 	import SpeedSheet from '#lib/components/networks/SpeedSheet.svelte';
 	import NetworkSheet from '#lib/components/networks/NetworkSheet.svelte';
 	import PortSheet from '#lib/components/networks/PortSheet.svelte';
 	import PortStrip from '#lib/components/networks/PortStrip.svelte';
+	import { mainPrefix } from '#lib/ipv6.js';
 	import { palette } from '#lib/palette.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import List from '#lib/components/ui/List.svelte';
@@ -63,18 +59,6 @@
 	const count = (n: number, one: string, many: string) =>
 		n ? `${n} ${n === 1 ? one : many}` : 'None';
 
-	async function setIpv6(enabled: boolean) {
-		try {
-			await applyChange(
-				() => api.put<Applied>('/lan/ipv6', { enabled }),
-				enabled ? 'IPv6 is on' : 'IPv6 is off'
-			);
-		} catch (err) {
-			toasts.error(err);
-		}
-		lan.refresh();
-	}
-
 	const networks = $derived(overview.data?.networks ?? []);
 	const ports = $derived(overview.data?.ports ?? []);
 	const snapshot = $derived(live.snapshot);
@@ -92,8 +76,10 @@
 
 	function detail(network: Network) {
 		const count = members(network).length;
+		const prefix = network.ipv6.enabled ? mainPrefix(network.ipv6.prefixes) : null;
 		const parts = [
 			network.address?.split('/')[0] ?? 'No address',
+			...(prefix ? [prefix] : []),
 			`${count} ${count === 1 ? 'device' : 'devices'}`
 		];
 		if (network.wifi.length) parts.push(`${network.wifi.join(', ')} Wi-Fi`);
@@ -120,7 +106,9 @@
 			settings.data?.connection.kind ?? 'dhcp'
 		];
 		return {
-			detail: [kind, wan?.ipv4?.split('/')[0]].filter(Boolean).join(' · '),
+			detail: [kind, wan?.ipv4?.split('/')[0], wan?.prefix6 ?? wan?.ipv6?.split('/')[0]]
+				.filter(Boolean)
+				.join(' · '),
 			value: !snapshot ? null : online ? `${snapshot.internet.latencyMs ?? '–'} ms` : 'Offline',
 			tone: (online ? 'muted' : 'bad') as 'muted' | 'bad'
 		};
@@ -208,18 +196,6 @@
 				value={count(lan.data.routes.length, 'route', 'routes')}
 				onclick={() => (lanPanel = 'routes')}
 			/>
-			<Row
-				title="IPv6"
-				icon={Earth}
-				tint={lan.data.ipv6.enabled ? 'var(--color-accent)' : undefined}
-				detail={!lan.data.ipv6.enabled
-					? 'Off'
-					: (lan.data.ipv6.prefix ?? lan.data.ipv6.address ?? "Your provider isn't offering it")}
-			>
-				{#snippet trailing()}
-					<Toggle checked={lan.data!.ipv6.enabled} label="IPv6" onchange={setIpv6} />
-				{/snippet}
-			</Row>
 		</List>
 	{/if}
 </div>

@@ -1,15 +1,17 @@
 <script lang="ts">
-	import { ListChecks, Lock, Shield, ShieldCheck, ShieldOff } from '@lucide/svelte';
+	import { Ban, ListChecks, Lock, Shield, ShieldCheck, ShieldOff } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { opened } from '#lib/opened.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
-	import type { NetworksOverview, Protection } from '#lib/api/types.js';
+	import type { NetworksOverview, Protection, ProtectionActivity } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import { palette } from '#lib/palette.js';
+	import BlockedSheet from '#lib/components/security/BlockedSheet.svelte';
 	import AllowSheet from '#lib/components/security/AllowSheet.svelte';
 	import BlockingSheet from '#lib/components/security/BlockingSheet.svelte';
 	import DnsSheet from '#lib/components/security/DnsSheet.svelte';
 	import { levelLabel, type Level } from '#lib/components/security/levels.js';
+	import { timeline } from '#lib/components/security/timeline.js';
 	import { providers } from '#lib/components/security/providers.js';
 	import List from '#lib/components/ui/List.svelte';
 	import PageHeader from '#lib/components/ui/PageHeader.svelte';
@@ -17,11 +19,16 @@
 
 	const protection = poll(() => api.get<Protection>('/protection'), 60000);
 	const networks = poll(() => api.get<NetworksOverview>('/networks'), 60000);
+	const activity = poll(() => api.get<ProtectionActivity>('/protection/activity'), 30000);
 
 	let choosing = $state<string | null>(null);
-	let panel = $state<'allow' | 'dns' | null>(null);
+	let panel = $state<'allow' | 'dns' | 'blocked' | null>(null);
 
-	opened('open', (value) => (panel = value as 'allow' | 'dns'));
+	opened('open', (value) => (panel = value as 'allow' | 'dns' | 'blocked'));
+
+	const blockedToday = $derived(
+		activity.data?.buckets.reduce((sum, bucket) => sum + bucket.blocked, 0) ?? 0
+	);
 	let busy = $state(false);
 
 	const all = $derived(networks.data?.networks ?? []);
@@ -94,6 +101,23 @@
 </PageHeader>
 
 <div class="flex max-w-[860px] flex-col gap-10">
+	<List>
+		{#if activity.data}
+			<Row
+				title="Blocked today"
+				detail={activity.data.enabled ? 'Ads, trackers and threats stopped' : 'Not keeping track'}
+				icon={Ban}
+				tint={activity.data.enabled ? 'var(--color-danger)' : undefined}
+				graph={activity.data.enabled
+					? timeline(activity.data.buckets, 36, 1, (b) => b.blocked)
+					: undefined}
+				graphMax={1}
+				value={activity.data.enabled ? blockedToday.toLocaleString() : null}
+				onclick={() => (panel = 'blocked')}
+			/>
+		{/if}
+	</List>
+
 	<List label="Blocking">
 		{#each all as network (network.id)}
 			{@const current = level(network.id)}
@@ -131,6 +155,12 @@
 	level={choosing ? level(choosing) : 'off'}
 	onclose={() => (choosing = null)}
 	onchange={(next) => choosing && setLevel(choosing, next)}
+/>
+<BlockedSheet
+	activity={activity.data}
+	open={panel === 'blocked'}
+	onclose={() => (panel = null)}
+	onsaved={() => activity.refresh()}
 />
 <AllowSheet
 	allow={protection.data?.allow ?? []}
