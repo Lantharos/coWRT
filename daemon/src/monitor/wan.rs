@@ -3,6 +3,8 @@ use serde_json::{Value, json};
 
 use crate::platform::ubus::Ubus;
 
+pub const MAIN: &str = "wan";
+
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Wan {
@@ -30,15 +32,18 @@ fn first(status: &Value, key: &str) -> Option<String> {
 }
 
 impl Wan {
-	pub async fn read(ubus: &Ubus) -> Self {
+	pub async fn read(ubus: &Ubus, interface: &str) -> Self {
 		let v4 = ubus
-			.call("network.interface.wan", "status", json!({}))
+			.call(&format!("network.interface.{interface}"), "status", json!({}))
 			.await
 			.unwrap_or_default();
-		let v6 = ubus
-			.call("network.interface.wan6", "status", json!({}))
-			.await
-			.unwrap_or_default();
+		let v6 = if interface == MAIN {
+			ubus.call("network.interface.wan6", "status", json!({}))
+				.await
+				.unwrap_or_default()
+		} else {
+			Value::Null
+		};
 		let gateway = v4.get("route").and_then(Value::as_array).and_then(|routes| {
 			routes
 				.iter()

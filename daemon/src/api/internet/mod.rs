@@ -1,3 +1,5 @@
+pub mod uplinks;
+
 use std::time::Duration;
 
 use axum::Json;
@@ -67,7 +69,7 @@ pub async fn update_qos(State(state): State<AppState>, Json(input): Json<Setting
 			async |ubus| Ok(qos::store(ubus, &input).await?),
 		)
 		.await?;
-	let wan = Wan::read(&state.ubus).await;
+	let wan = Wan::read(&state.ubus, crate::monitor::wan::MAIN).await;
 	qos::apply(&state.ubus, wan.device.as_deref())
 		.await
 		.map_err(|err| ApiError::conflict(format!("The smart queue couldn't start: {err}")))?;

@@ -1,33 +1,15 @@
 <script lang="ts">
-	import {
-		Gauge,
-		Globe,
-		House,
-		Network as NetworkIcon,
-		Plus,
-		Signpost,
-		Tags
-	} from '@lucide/svelte';
+	import { House, Network as NetworkIcon, Plus, Signpost, Tags } from '@lucide/svelte';
 	import { devices } from '#lib/api/devices.svelte.js';
-	import { ago, bits, joined } from '#lib/format.js';
+	import { bits, joined } from '#lib/format.js';
 	import { api } from '#lib/api/client.js';
 	import { opened } from '#lib/opened.svelte.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
-	import type {
-		Device,
-		InternetOverview,
-		LanOverview,
-		Network,
-		NetworksOverview,
-		Port
-	} from '#lib/api/types.js';
-	import { speedtests } from '#lib/api/speedtest.svelte.js';
-	import { mbps } from '#lib/components/networks/grade.js';
+	import type { LanOverview, Network, NetworksOverview, Port } from '#lib/api/types.js';
+	import InternetList from '#lib/components/internet/InternetList.svelte';
 	import NamesSheet from '#lib/components/networks/NamesSheet.svelte';
 	import RoutesSheet from '#lib/components/networks/RoutesSheet.svelte';
-	import InternetSheet from '#lib/components/networks/InternetSheet.svelte';
-	import SpeedSheet from '#lib/components/networks/SpeedSheet.svelte';
 	import NetworkSheet from '#lib/components/networks/NetworkSheet.svelte';
 	import PortSheet from '#lib/components/networks/PortSheet.svelte';
 	import PortStrip from '#lib/components/networks/PortStrip.svelte';
@@ -39,14 +21,11 @@
 	import Row from '#lib/components/ui/Row.svelte';
 
 	const overview = poll(() => api.get<NetworksOverview>('/networks'), 10000);
-	const settings = poll(() => api.get<InternetOverview>('/internet'), 60000);
 	const lan = poll(() => api.get<LanOverview>('/lan'), 60000);
 	devices.use();
-	speedtests.use();
 
 	let editing = $state<string | 'new' | null>(null);
 	let selectedPort = $state<string | null>(null);
-	let internetOpen = $state(false);
 	let speedOpen = $state(false);
 	let lanPanel = $state<'names' | 'routes' | null>(null);
 
@@ -87,32 +66,6 @@
 		else if (!network.trusted) parts.push('kept apart');
 		return parts.join(' · ');
 	}
-
-	const speed = $derived.by(() => {
-		const running = speedtests.data?.running;
-		const latest = speedtests.latest;
-		if (running) return { detail: 'Testing…', value: `${mbps(running.current)} Mbps` };
-		if (!latest) return { detail: 'Measure your line', value: null };
-		return {
-			detail: `Tested ${ago(latest.time)}`,
-			value: `${mbps(latest.download)} / ${mbps(latest.upload)} Mbps`
-		};
-	});
-
-	const internet = $derived.by(() => {
-		const wan = snapshot?.wan;
-		const online = snapshot?.internet.online;
-		const kind = { dhcp: 'Automatic', static: 'Fixed address', pppoe: 'PPPoE' }[
-			settings.data?.connection.kind ?? 'dhcp'
-		];
-		return {
-			detail: [kind, wan?.ipv4?.split('/')[0], wan?.prefix6 ?? wan?.ipv6?.split('/')[0]]
-				.filter(Boolean)
-				.join(' · '),
-			value: !snapshot ? null : online ? `${snapshot.internet.latencyMs ?? '–'} ms` : 'Offline',
-			tone: (online ? 'muted' : 'bad') as 'muted' | 'bad'
-		};
-	});
 </script>
 
 <PageHeader
@@ -157,28 +110,7 @@
 		</List>
 	{/if}
 
-	<List>
-		<Row
-			title="Internet"
-			icon={Globe}
-			tint="var(--color-accent)"
-			graph={live.samples.map((sample) => sample.throughput.rx + sample.throughput.tx)}
-			detail={internet.detail}
-			value={internet.value}
-			tone={internet.tone}
-			onclick={() => (internetOpen = true)}
-		/>
-		<Row
-			title="Speed"
-			icon={Gauge}
-			tint={speedtests.latest ? 'var(--color-accent)' : undefined}
-			detail={speed.detail}
-			graph={speedtests.data?.running?.trace ??
-				speedtests.data?.history.map((result) => result.download)}
-			value={speed.value}
-			onclick={() => (speedOpen = true)}
-		/>
-	</List>
+	<InternetList bind:speedOpen />
 
 	{#if lan.data}
 		<List>
@@ -228,13 +160,4 @@
 	open={lanPanel === 'routes'}
 	onclose={() => (lanPanel = null)}
 	onsaved={() => lan.refresh()}
-/>
-
-<SpeedSheet open={speedOpen} onclose={() => (speedOpen = false)} />
-
-<InternetSheet
-	settings={settings.data}
-	open={internetOpen}
-	onclose={() => (internetOpen = false)}
-	onsaved={() => settings.refresh()}
 />

@@ -21,6 +21,7 @@ export interface Snapshot {
 	throughput: { rx: number; tx: number };
 	internet: { checked: boolean; online: boolean; latencyMs: number | null; online6: boolean };
 	usageToday: number;
+	uplink: Uplink | null;
 }
 
 export interface HistoryPoint {
@@ -458,4 +459,26 @@ export interface ProtectionActivity {
 	enabled: boolean;
 	buckets: { time: number; lookups: number; blocked: number }[];
 	topBlocked: SiteActivity[];
+}
+
+export type UplinkKind = 'cable' | 'phone' | 'other';
+
+export interface Uplink {
+	id: string;
+	name: string;
+	kind: UplinkKind;
+	device: string | null;
+	connected: boolean;
+	online: boolean;
+	latencyMs: number | null;
+	inUse: boolean;
+	since: number;
+}
+
+export interface UplinkStatus {
+	mode: string;
+	failback: boolean;
+	active: string | null;
+	uplinks: Uplink[];
+	phoneDrivers: boolean;
 }

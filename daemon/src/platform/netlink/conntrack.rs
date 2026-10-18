@@ -78,11 +78,12 @@ pub fn flows() -> io::Result<Vec<Flow>> {
 }
 
 pub fn forget(addresses: &[IpAddr]) -> io::Result<()> {
+	forget_where(|flow| addresses.contains(&flow.source) || addresses.contains(&flow.destination))
+}
+
+pub fn forget_where(doomed: impl Fn(&Flow) -> bool) -> io::Result<()> {
 	let mut socket = Socket::open(NETLINK_NETFILTER)?;
-	for flow in flows()?
-		.into_iter()
-		.filter(|flow| addresses.contains(&flow.source) || addresses.contains(&flow.destination))
-	{
+	for flow in flows()?.into_iter().filter(|flow| doomed(flow)) {
 		let mut payload = header(flow.family).to_vec();
 		payload.extend_from_slice(&flow.tuple);
 		match socket.request(MSG_DELETE, NLM_F_REQUEST | NLM_F_ACK, &payload) {

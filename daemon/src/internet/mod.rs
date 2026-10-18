@@ -1,5 +1,6 @@
 pub mod qos;
 pub mod speedtest;
+pub mod uplinks;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;

@@ -142,7 +142,7 @@ async fn update(ubus: &Ubus, settings: &Settings, forced: bool) -> Result<Status
 	let ipv4 = reach::public_ipv4()
 		.await
 		.map_err(|err| format!("Couldn't find your public address: {err}"))?;
-	let ipv6 = Wan::read(ubus)
+	let ipv6 = Wan::read(ubus, crate::monitor::wan::MAIN)
 		.await
 		.ipv6
 		.map(|cidr| cidr.split('/').next().unwrap_or_default().to_owned());

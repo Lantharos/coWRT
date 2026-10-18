@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::activity::Activity;
 use crate::http::Sessions;
 use crate::internet::speedtest::SpeedTest;
+use crate::internet::uplinks::Uplinks;
 use crate::monitor::Monitor;
 use crate::platform::config::Applier;
 use crate::platform::ubus::Ubus;
@@ -22,6 +23,7 @@ pub struct AppState {
 	pub applier: Arc<Applier>,
 	pub speedtest: Arc<SpeedTest>,
 	pub activity: Arc<Activity>,
+	pub uplinks: Arc<Uplinks>,
 }
 
 impl AppState {
@@ -34,6 +36,7 @@ impl AppState {
 			applier: Arc::default(),
 			speedtest: Arc::default(),
 			activity: Arc::default(),
+			uplinks: Arc::default(),
 		}
 	}
 }

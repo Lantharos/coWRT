@@ -41,6 +41,10 @@ pub fn routes() -> Router<AppState> {
 		.route("/internet/connection", put(internet::update_connection))
 		.route("/internet/qos", put(internet::update_qos))
 		.route("/internet/ipv6", put(internet::update_ipv6))
+		.route("/internet/uplinks", get(internet::uplinks::status))
+		.route("/internet/uplinks/phone", post(internet::uplinks::add_phone))
+		.route("/internet/uplinks/{id}", axum::routing::delete(internet::uplinks::remove))
+		.route("/internet/failover", put(internet::uplinks::update_failover))
 		.route("/internet/acceleration", put(internet::update_acceleration))
 		.route(
 			"/internet/speedtest",

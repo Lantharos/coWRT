@@ -38,6 +38,7 @@ pub struct Snapshot {
 	pub throughput: Throughput,
 	pub internet: connectivity::Internet,
 	pub usage_today: u64,
+	pub uplink: Option<crate::internet::uplinks::Uplink>,
 }
 
 #[derive(Clone, Copy, Default, Serialize)]
@@ -206,11 +207,21 @@ pub fn spawn(state: AppState) {
 		let mut utc_offset = 0i64;
 
 		let mut tick = 0u64;
+		let mut uplink = wan::MAIN.to_owned();
 		loop {
 			ticker.tick().await;
+			let active = state.uplinks.active_id();
+			if tick.is_multiple_of(10) || active != uplink {
+				wan = Wan::read(&state.ubus, &active).await;
+				let main = if active == wan::MAIN {
+					wan.device.clone()
+				} else {
+					Wan::read(&state.ubus, wan::MAIN).await.device
+				};
+				watcher.check(&state, main.as_deref()).await;
+				uplink = active;
+			}
 			if tick.is_multiple_of(10) {
-				wan = Wan::read(&state.ubus).await;
-				watcher.check(&state, wan.device.as_deref()).await;
 				record_signals(&state).await;
 			}
 			if tick % 60 == 30 {
@@ -269,6 +280,7 @@ pub fn spawn(state: AppState) {
 				},
 				internet: *internet.borrow(),
 				usage_today,
+				uplink: state.uplinks.active(),
 			};
 			state.monitor.history.lock().expect("history lock poisoned").record(&snapshot);
 			state.monitor.latest.send_replace(snapshot);

@@ -58,6 +58,7 @@ async fn main() {
 	access::ddns::spawn(state.clone());
 	protection::spawn(state.clone());
 	activity::spawn(state.clone());
+	internet::uplinks::spawn(state.clone());
 
 	let listener = tokio::net::TcpListener::bind(args.listen)
 		.await

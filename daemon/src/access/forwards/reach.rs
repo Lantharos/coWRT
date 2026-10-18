@@ -43,7 +43,7 @@ pub async fn public_ipv4() -> io::Result<String> {
 
 pub async fn status(ubus: &Ubus) -> Reach {
 	let public_ip = public_ipv4().await.ok();
-	let wan_ip = Wan::read(ubus)
+	let wan_ip = Wan::read(ubus, crate::monitor::wan::MAIN)
 		.await
 		.ipv4
 		.map(|cidr| cidr.split('/').next().unwrap_or_default().to_owned());

@@ -107,8 +107,10 @@ impl Layout {
 	}
 
 	pub fn wan_devices(&self) -> Vec<String> {
+		let uplinks = self.cowrt.iter().filter(|s| s.kind == "uplink").map(|s| s.name.as_str());
 		["wan", "wan6"]
-			.iter()
+			.into_iter()
+			.chain(uplinks)
 			.filter_map(|id| self.interface(id)?.get("device").map(str::to_owned))
 			.collect()
 	}

@@ -158,7 +158,7 @@ impl SpeedTest {
 		*self.error.lock().expect("speed test lock poisoned") = None;
 		let progress = self.running.clone();
 		tokio::spawn(async move {
-			let wan = Wan::read(&state.ubus).await;
+			let wan = Wan::read(&state.ubus, crate::monitor::wan::MAIN).await;
 			qos::clear(wan.device.as_deref()).await;
 			let measuring = progress.clone();
 			let result = tokio::task::spawn_blocking(move || measure(&measuring)).await.ok().flatten();
