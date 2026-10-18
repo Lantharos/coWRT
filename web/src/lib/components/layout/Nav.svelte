@@ -41,13 +41,13 @@
 		<span class="font-display text-xl font-medium tracking-tight">coWRT</span>
 	</a>
 	<nav
-		class="fixed inset-x-0 bottom-0 z-30 flex justify-around bg-bg/90 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-lg md:static md:z-auto md:flex-1 md:justify-start md:gap-1 md:bg-transparent md:p-0 md:backdrop-blur-none"
+		class="fixed inset-x-0 bottom-0 z-30 flex justify-around bg-bg/90 px-1 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-lg md:static md:z-auto md:flex-1 md:justify-start md:gap-1 md:bg-transparent md:p-0 md:backdrop-blur-none"
 	>
 		{#each tabs as tab (tab.href)}
 			<a
 				href={tab.href}
 				aria-current={active(tab.href) ? 'page' : undefined}
-				class="flex flex-col items-center gap-1 rounded-[13px] px-3 py-1.5 text-[11px] whitespace-nowrap transition-colors md:flex-row md:px-3.5 md:py-2 md:text-[15px] {active(
+				class="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[13px] px-0.5 py-1.5 text-[10.5px] whitespace-nowrap transition-colors md:flex-none md:flex-row md:px-3.5 md:py-2 md:text-[15px] {active(
 					tab.href
 				)
 					? 'text-fg md:bg-raised'
