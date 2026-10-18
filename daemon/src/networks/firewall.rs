@@ -50,7 +50,12 @@ pub async fn sync(ubus: &Ubus) -> Result<(), ubus::Error> {
 		.and_then(|zone| zone.get("name"))
 		.unwrap_or("wan")
 		.to_owned();
-	for section in sections.iter().filter(|s| s.name.starts_with(PREFIX)) {
+	let owned = |name: &str| {
+		["zone_", "fwd_", "rule_"]
+			.iter()
+			.any(|kind| name.starts_with(&format!("{PREFIX}{kind}")))
+	};
+	for section in sections.iter().filter(|s| owned(&s.name)) {
 		uci::delete(ubus, CONFIG, &section.name).await?;
 	}
 

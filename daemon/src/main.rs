@@ -55,6 +55,9 @@ async fn main() {
 	if let Err(err) = networks::adopt(&state.ubus).await {
 		eprintln!("cowrtd: could not set up the network layout: {err}");
 	}
+	if let Err(err) = forwards::repair(&state.ubus).await {
+		eprintln!("cowrtd: could not restore port forwards: {err}");
+	}
 	monitor::spawn(state.clone());
 	ddns::spawn(state.clone());
 	protection::spawn(state.clone());

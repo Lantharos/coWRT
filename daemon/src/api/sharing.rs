@@ -56,7 +56,8 @@ pub async fn create(State(state): State<AppState>, Json(input): Json<ForwardInpu
 		.applier
 		.apply(&state.ubus, CONFIGS, None, async |ubus| {
 			forwards::store(ubus, None, &input).await?;
-			forwards::sync(ubus).await
+			forwards::sync(ubus).await?;
+			Ok(())
 		})
 		.await?;
 	Ok(Json(applied))
@@ -73,7 +74,8 @@ pub async fn update(
 		.applier
 		.apply(&state.ubus, CONFIGS, None, async |ubus| {
 			forwards::store(ubus, Some(&id), &input).await?;
-			forwards::sync(ubus).await
+			forwards::sync(ubus).await?;
+			Ok(())
 		})
 		.await?;
 	Ok(Json(applied))
@@ -84,7 +86,8 @@ pub async fn delete(State(state): State<AppState>, Path(id): Path<String>) -> Ap
 		.applier
 		.apply(&state.ubus, CONFIGS, None, async |ubus| {
 			crate::config::uci::delete(ubus, "cowrt", &id).await?;
-			forwards::sync(ubus).await
+			forwards::sync(ubus).await?;
+			Ok(())
 		})
 		.await?;
 	Ok(Json(applied))

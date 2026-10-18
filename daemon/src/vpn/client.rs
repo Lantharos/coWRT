@@ -89,11 +89,8 @@ async fn import(ubus: &Ubus, text: &str) -> Result<Vec<String>, ApiError> {
 }
 
 async fn route(ubus: &Ubus, enabled: bool, networks: &[String], dns: &[String]) -> Result<(), ApiError> {
-	for section in uci::sections(ubus, "network")
-		.await?
-		.iter()
-		.filter(|s| s.name.starts_with(PREFIX) && s.name != PEER)
-	{
+	let owned = |name: &str| name.starts_with(&format!("{PREFIX}rule_")) || name == format!("{PREFIX}killswitch");
+	for section in uci::sections(ubus, "network").await?.iter().filter(|s| owned(&s.name)) {
 		uci::delete(ubus, "network", &section.name).await?;
 	}
 	let layout = Layout::load(ubus).await?;

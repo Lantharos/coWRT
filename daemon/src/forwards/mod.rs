@@ -2,7 +2,7 @@ pub mod reach;
 pub mod upnp;
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::config::uci::{self, Section};
 use crate::http::ApiError;
@@ -147,38 +147,72 @@ pub async fn store(ubus: &Ubus, id: Option<&str>, input: &ForwardInput) -> Resul
 	Ok(())
 }
 
-pub async fn sync(ubus: &Ubus) -> Result<(), ApiError> {
+async fn desired(ubus: &Ubus) -> Result<Vec<(String, Value)>, ubus::Error> {
 	let forwards = list(ubus).await?;
-	let layout = Layout::load(ubus).await?;
-	let subnets = layout.subnets();
-	for section in uci::sections(ubus, "firewall")
-		.await?
+	let subnets = Layout::load(ubus).await?.subnets();
+	Ok(forwards
 		.iter()
+		.enumerate()
+		.filter(|(_, forward)| forward.enabled)
+		.filter_map(|(index, forward)| {
+			let address = forward.address.as_deref()?;
+			let ip = address.parse().ok()?;
+			let (zone, _) = subnets.iter().find(|(_, cidr)| cidr.contains(ip))?;
+			let redirect = json!({
+				"name": forward.name,
+				"src": "wan",
+				"src_dport": forward.external,
+				"dest": zone,
+				"dest_ip": address,
+				"dest_port": forward.internal.clone().unwrap_or_else(|| forward.external.clone()),
+				"proto": forward.protocol.uci(),
+				"target": "DNAT",
+			});
+			Some((format!("{PREFIX}{index}"), redirect))
+		})
+		.collect())
+}
+
+fn as_uci(value: &Value) -> Value {
+	match value {
+		Value::Array(items) if items.len() == 1 => items[0].clone(),
+		other => other.clone(),
+	}
+}
+
+pub async fn sync(ubus: &Ubus) -> Result<bool, ubus::Error> {
+	let wanted = desired(ubus).await?;
+	let existing: Vec<Section> = uci::sections(ubus, "firewall")
+		.await?
+		.into_iter()
 		.filter(|s| s.name.starts_with(PREFIX))
-	{
+		.collect();
+	let matches = existing.len() == wanted.len()
+		&& wanted.iter().all(|(name, values)| {
+			existing.iter().any(|section| {
+				section.name == *name
+					&& values.as_object().is_some_and(|map| {
+						map.iter()
+							.all(|(key, value)| section.values.get(key).map(as_uci) == Some(as_uci(value)))
+					})
+			})
+		});
+	if matches {
+		return Ok(false);
+	}
+	for section in &existing {
 		uci::delete(ubus, "firewall", &section.name).await?;
 	}
-	for (index, forward) in forwards.iter().enumerate().filter(|(_, f)| f.enabled) {
-		let Some(address) = forward.address.as_deref() else { continue };
-		let Some(zone) = address
-			.parse()
-			.ok()
-			.and_then(|ip| subnets.iter().find(|(_, cidr)| cidr.contains(ip)))
-			.map(|(id, _)| id)
-		else {
-			continue;
-		};
-		let redirect = json!({
-			"name": forward.name,
-			"src": "wan",
-			"src_dport": forward.external,
-			"dest": zone,
-			"dest_ip": address,
-			"dest_port": forward.internal.clone().unwrap_or_else(|| forward.external.clone()),
-			"proto": forward.protocol.uci(),
-			"target": "DNAT",
-		});
-		uci::add(ubus, "firewall", "redirect", Some(&format!("{PREFIX}{index}")), redirect).await?;
+	for (name, redirect) in wanted {
+		uci::add(ubus, "firewall", "redirect", Some(&name), redirect).await?;
+	}
+	Ok(true)
+}
+
+pub async fn repair(ubus: &Ubus) -> Result<(), ubus::Error> {
+	if sync(ubus).await? {
+		ubus.call("uci", "commit", json!({ "config": "firewall" })).await?;
+		crate::config::reload(ubus, ["firewall"].into_iter()).await;
 	}
 	Ok(())
 }
