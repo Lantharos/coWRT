@@ -171,7 +171,13 @@
 				upload: kbit(upload)
 			});
 			toasts.show(
-				!queue ? 'Smart queue is off' : auto ? 'Measuring your line first' : 'Smart queue is on'
+				!queue
+					? 'Smart queue is off'
+					: settings?.acceleration === 'hardware'
+						? 'Smart queue is on, acceleration switched to software'
+						: auto
+							? 'Measuring your line first'
+							: 'Smart queue is on'
 			);
 			onsaved();
 		} catch (err) {
@@ -282,7 +288,14 @@
 						</Button>
 					</div>
 				{/if}
-				<Setting title="Acceleration" hint="Faster, but skips limits and priority">
+				<Setting
+					title="Acceleration"
+					hint={{
+						off: 'Every packet goes through the processor',
+						software: 'Fast, and everything keeps working',
+						hardware: 'Fastest, but skips the smart queue, limits and priority'
+					}[settings.acceleration]}
+				>
 					<div class="w-36">
 						<Select
 							value={settings.acceleration}

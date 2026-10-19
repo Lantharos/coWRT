@@ -75,16 +75,21 @@ fn is_dfs(band: &str, channel: u32) -> bool {
 fn neighbor(entry: &Value) -> Option<(Neighbor, u32)> {
 	let channel = entry.get("channel")?.as_u64()? as u32;
 	let vht = entry.get("vht_operation");
+	let offset = entry
+		.pointer("/ht_operation/secondary_channel_offset")
+		.and_then(Value::as_str);
+	let widened = matches!(offset, Some("above" | "below"));
+	let ht_width = match entry.pointer("/ht_operation/channel_width").and_then(Value::as_u64) {
+		Some(40 | 2040) if widened => 40,
+		_ => 20,
+	};
 	let width = vht
 		.and_then(|v| v.get("channel_width")?.as_u64())
-		.or_else(|| entry.pointer("/ht_operation/channel_width")?.as_u64())
-		.unwrap_or(20) as u32;
+		.filter(|width| [80, 160, 320].contains(width))
+		.map_or(ht_width, |width| width as u32);
 	let center = match vht.and_then(|v| v.get("center_freq_1")?.as_u64()) {
 		Some(center) if width >= 80 && center > 0 => center as u32,
-		_ => match entry
-			.pointer("/ht_operation/secondary_channel_offset")
-			.and_then(Value::as_str)
-		{
+		_ => match offset {
 			Some("above") if width >= 40 => channel + 2,
 			Some("below") if width >= 40 => channel.saturating_sub(2),
 			_ => channel,

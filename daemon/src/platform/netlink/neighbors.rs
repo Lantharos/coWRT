@@ -22,7 +22,7 @@ pub struct Neighbor {
 	pub active: bool,
 }
 
-fn device_name(index: u32) -> Option<String> {
+pub fn device_name(index: u32) -> Option<String> {
 	let mut name = [0 as libc::c_char; libc::IF_NAMESIZE];
 	let found = unsafe { libc::if_indextoname(index, name.as_mut_ptr()) };
 	(!found.is_null()).then(|| unsafe { CStr::from_ptr(name.as_ptr()) }.to_string_lossy().into_owned())

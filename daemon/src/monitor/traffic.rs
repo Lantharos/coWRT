@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 
+use super::exact::Exact;
 use crate::platform::netlink::conntrack::Flow;
 use crate::platform::netlink::neighbors::Neighbor;
 
 #[derive(Default)]
 pub struct Accounting {
 	seen: HashMap<(u8, u32), (u64, u64)>,
+	exact_seen: HashMap<String, (u64, u64)>,
 	primed: bool,
 }
 
@@ -15,7 +17,7 @@ pub struct Sample {
 }
 
 impl Accounting {
-	pub fn sample(&mut self, flows: Vec<Flow>, neighbors: &[Neighbor], wan_device: Option<&str>) -> Sample {
+	pub fn sample(&mut self, flows: Vec<Flow>, exact: Vec<Exact>, neighbors: &[Neighbor], wan_device: Option<&str>) -> Sample {
 		let owners: HashMap<IpAddr, &str> = neighbors
 			.iter()
 			.filter(|n| Some(n.device.as_str()) != wan_device)
@@ -46,6 +48,18 @@ impl Accounting {
 			entry.1 += up;
 		}
 		self.seen = seen;
+
+		let mut exact_seen = HashMap::with_capacity(exact.len());
+		for counter in exact {
+			let (down_before, up_before) = match self.exact_seen.get(&counter.key) {
+				Some(&(down, up)) if down <= counter.down && up <= counter.up => (down, up),
+				Some(_) => (0, 0),
+				None => (counter.down, counter.up),
+			};
+			exact_seen.insert(counter.key, (counter.down, counter.up));
+			per_device.insert(counter.mac, (counter.down - down_before, counter.up - up_before));
+		}
+		self.exact_seen = exact_seen;
 		self.primed = true;
 		Sample { per_device }
 	}

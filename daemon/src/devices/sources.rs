@@ -46,6 +46,8 @@ pub struct WifiClient {
 	pub signal: Option<i64>,
 	pub rx_rate: u64,
 	pub tx_rate: u64,
+	pub rx_bytes: u64,
+	pub tx_bytes: u64,
 }
 
 pub fn band(freq: u64) -> &'static str {
@@ -86,6 +88,8 @@ pub async fn wifi_clients(ubus: &Ubus) -> Vec<WifiClient> {
 				signal: station.get("signal").and_then(Value::as_i64),
 				rx_rate: rate("rx"),
 				tx_rate: rate("tx"),
+				rx_bytes: station.pointer("/bytes/rx").and_then(Value::as_u64).unwrap_or_default(),
+				tx_bytes: station.pointer("/bytes/tx").and_then(Value::as_u64).unwrap_or_default(),
 			});
 		}
 	}

@@ -60,14 +60,16 @@ pub async fn update_qos(State(state): State<AppState>, Json(input): Json<Setting
 	if input.enabled && !input.auto && (input.download < 1000 || input.upload < 1000) {
 		return Err(ApiError::bad_request("Enter your line speeds, at least 1 Mbps each way"));
 	}
+	let bypassed = input.enabled && internet::acceleration(&state.ubus).await? == Acceleration::Hardware;
 	let applied = state
 		.applier
-		.apply(
-			&state.ubus,
-			&["cowrt"],
-			None,
-			async |ubus| Ok(qos::store(ubus, &input).await?),
-		)
+		.apply(&state.ubus, &["cowrt", "firewall"], None, async |ubus| {
+			qos::store(ubus, &input).await?;
+			if bypassed {
+				internet::set_acceleration(ubus, Acceleration::Software).await?;
+			}
+			Ok(())
+		})
 		.await?;
 	let wan = Wan::read(&state.ubus, crate::monitor::wan::MAIN).await;
 	qos::apply(&state.ubus, wan.device.as_deref())

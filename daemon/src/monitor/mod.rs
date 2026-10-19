@@ -1,4 +1,5 @@
 mod connectivity;
+mod exact;
 mod history;
 pub mod ledger;
 mod proc;
@@ -157,7 +158,8 @@ async fn account(state: &AppState, accounting: &mut Accounting, wan_device: Opti
 	})
 	.await;
 	let Ok(Ok((flows, neighbors))) = gathered else { return };
-	let sample = accounting.sample(flows, &neighbors, wan_device.as_deref());
+	let exact = exact::gather(&state.ubus).await;
+	let sample = accounting.sample(flows, exact, &neighbors, wan_device.as_deref());
 	let mut ledger = state.monitor.ledger.lock().await;
 	let mut rates = state.monitor.rates.lock().expect("rates lock poisoned");
 	for rate in rates.values_mut() {
