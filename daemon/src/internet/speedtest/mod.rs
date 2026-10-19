@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
-use measure::Direction;
+use measure::{Direction, Failure};
 
 use crate::internet::qos;
 use crate::monitor::wan::Wan;
@@ -38,7 +38,7 @@ pub struct Progress {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Result {
+pub struct Run {
 	time: u64,
 	download: u64,
 	upload: u64,
@@ -51,7 +51,7 @@ pub struct Result {
 pub struct Overview {
 	running: Option<Progress>,
 	error: Option<String>,
-	history: Vec<Result>,
+	history: Vec<Run>,
 }
 
 #[derive(Default)]
@@ -60,12 +60,12 @@ pub struct SpeedTest {
 	error: Mutex<Option<String>>,
 }
 
-async fn history() -> Vec<Result> {
+async fn history() -> Vec<Run> {
 	let raw = tokio::fs::read(STORE).await.unwrap_or_default();
 	serde_json::from_slice(&raw).unwrap_or_default()
 }
 
-async fn remember(result: Result) {
+async fn remember(result: Run) {
 	let mut kept = history().await;
 	kept.push(result);
 	let excess = kept.len().saturating_sub(KEPT);
@@ -84,7 +84,7 @@ fn update(progress: &Mutex<Option<Progress>>, change: impl FnOnce(&mut Progress)
 	}
 }
 
-fn measure(progress: &Mutex<Option<Progress>>) -> Option<Result> {
+fn measure(progress: &Mutex<Option<Progress>>) -> Result<Run, Failure> {
 	let latency = measure::idle_latency(LATENCY_SAMPLES)?;
 	update(progress, |p| {
 		p.latency = Some(latency);
@@ -99,18 +99,18 @@ fn measure(progress: &Mutex<Option<Progress>>) -> Option<Result> {
 			p.trace.push(current);
 		})
 	};
-	let down = measure::transfer(Direction::Down, live);
+	let down = measure::transfer(Direction::Down, live)?;
 	update(progress, |p| {
 		p.download = Some(down.rate);
 		p.phase = Phase::Upload;
 		p.trace.clear();
 	});
-	let up = measure::transfer(Direction::Up, live);
+	let up = measure::transfer(Direction::Up, live)?;
 	let loaded_latency = match (down.loaded_latency, up.loaded_latency) {
 		(Some(a), Some(b)) => Some(a.max(b)),
 		(a, b) => a.or(b),
 	};
-	Some(Result {
+	Ok(Run {
 		time: unix_now(),
 		download: down.rate,
 		upload: up.rate,
@@ -119,7 +119,7 @@ fn measure(progress: &Mutex<Option<Progress>>) -> Option<Result> {
 	})
 }
 
-async fn tune(state: &AppState, result: &Result) {
+async fn tune(state: &AppState, result: &Run) {
 	let Ok(mut settings) = qos::load(&state.ubus).await else {
 		return;
 	};
@@ -161,15 +161,16 @@ impl SpeedTest {
 			let wan = Wan::read(&state.ubus, crate::monitor::wan::MAIN).await;
 			qos::clear(wan.device.as_deref()).await;
 			let measuring = progress.clone();
-			let result = tokio::task::spawn_blocking(move || measure(&measuring)).await.ok().flatten();
-			match &result {
-				Some(result) => {
-					tune(&state, result).await;
-					remember(result.clone()).await;
+			let outcome = tokio::task::spawn_blocking(move || measure(&measuring))
+				.await
+				.unwrap_or(Err(Failure::Unreachable));
+			match outcome {
+				Ok(run) => {
+					tune(&state, &run).await;
+					remember(run).await;
 				}
-				None => {
-					*state.speedtest.error.lock().expect("speed test lock poisoned") =
-						Some("Couldn't reach the speed test servers".to_owned());
+				Err(failure) => {
+					*state.speedtest.error.lock().expect("speed test lock poisoned") = Some(failure.message().to_owned());
 				}
 			}
 			let _ = qos::apply(&state.ubus, wan.device.as_deref()).await;
