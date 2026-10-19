@@ -99,6 +99,9 @@ pub async fn sync(ubus: &Ubus) -> Result<(), ubus::Error> {
 		uci::add(ubus, CONFIG, "rule", Some(&format!("{PREFIX}rule_{id}_services")), services).await?;
 		let icmp = json!({ "name": format!("Allow {id} ICMP"), "src": id, "proto": "icmp", "target": "ACCEPT" });
 		uci::add(ubus, CONFIG, "rule", Some(&format!("{PREFIX}rule_{id}_icmp")), icmp).await?;
+		let mdns =
+			json!({ "name": format!("Allow {id} mDNS"), "src": id, "proto": "udp", "dest_port": "5353", "target": "ACCEPT" });
+		uci::add(ubus, CONFIG, "rule", Some(&format!("{PREFIX}rule_{id}_mdns")), mdns).await?;
 	}
 	Ok(())
 }
