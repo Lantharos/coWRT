@@ -85,6 +85,8 @@ dev/vm/ssh.sh 'cat > /tmp/cowrt.apk && apk add --allow-untrusted /tmp/cowrt.apk'
 
 After that, `dev/deploy.sh` swaps in a fresh build of the daemon and web app in a few seconds.
 
+To try a build on a real router that already has the package installed, `dev/deploy-router.sh root@10.0.0.1` does the same over SSH (add `x86_64` for an x86 router).
+
 The VM's LAN side has three ports (eth0, eth2 and eth3) and its WAN is eth1. For frontend work, run the Vite dev server instead. It proxies `/api` to the VM:
 
 ```bash
