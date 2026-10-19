@@ -187,7 +187,7 @@ pub async fn apply(ubus: &Ubus) -> std::io::Result<()> {
 		.filter(|device| nft::device_exists(device))
 		.collect();
 	let redirects = crate::protection::redirects(ubus).await.map_err(std::io::Error::other)?;
-	nft::run(&nft::render(&policies, &devices, &redirects)).await
+	crate::platform::nft::run(&nft::render(&policies, &devices, &redirects)).await
 }
 
 pub async fn cut_off(mac: &str) {

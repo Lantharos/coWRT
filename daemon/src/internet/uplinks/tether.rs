@@ -55,23 +55,53 @@ async fn wan_zone(ubus: &Ubus) -> Result<Option<uci::Section>, ubus::Error> {
 		.find(|zone| zone.list("network").iter().any(|n| n == "wan")))
 }
 
-pub async fn create(ubus: &Ubus, device: &str) -> Result<(), ApiError> {
-	let interface = json!({ "proto": "dhcp", "device": device, "metric": PHONE_METRIC, "peerdns": "1" });
-	uci::upsert(ubus, "network", "interface", PHONE, interface).await?;
+async fn join_wan_zone(ubus: &Ubus, interface: &str) -> Result<(), ubus::Error> {
 	if let Some(zone) = wan_zone(ubus).await? {
 		let mut networks = zone.list("network");
-		if !networks.iter().any(|n| n == PHONE) {
-			networks.push(PHONE.to_owned());
+		if !networks.iter().any(|n| n == interface) {
+			networks.push(interface.to_owned());
 			uci::set(ubus, "firewall", &zone.name, json!({ "network": networks })).await?;
 		}
 	}
 	Ok(())
 }
 
+pub fn ipv6_interfaces(id: &str) -> [String; 2] {
+	[format!("{id}6"), format!("{id}_6")]
+}
+
+pub async fn has_ipv6(ubus: &Ubus, id: &str) -> Result<bool, ubus::Error> {
+	let names = ipv6_interfaces(id);
+	Ok(uci::sections_of(ubus, "network", "interface")
+		.await?
+		.iter()
+		.any(|s| names.contains(&s.name)))
+}
+
+pub async fn add_ipv6(ubus: &Ubus, id: &str) -> Result<(), ubus::Error> {
+	let [name, _] = ipv6_interfaces(id);
+	let interface = json!({ "proto": "dhcpv6", "device": format!("@{id}"), "reqaddress": "try", "reqprefix": "no" });
+	uci::upsert(ubus, "network", "interface", &name, interface).await?;
+	join_wan_zone(ubus, &name).await
+}
+
+pub async fn create(ubus: &Ubus, device: &str) -> Result<(), ApiError> {
+	let interface = json!({ "proto": "dhcp", "device": device, "metric": PHONE_METRIC, "peerdns": "1" });
+	uci::upsert(ubus, "network", "interface", PHONE, interface).await?;
+	join_wan_zone(ubus, PHONE).await?;
+	Ok(add_ipv6(ubus, PHONE).await?)
+}
+
 pub async fn remove(ubus: &Ubus, id: &str) -> Result<(), ApiError> {
-	uci::delete(ubus, "network", id).await?;
+	let [ipv6, _] = ipv6_interfaces(id);
+	let doomed = [id.to_owned(), ipv6];
+	for interface in uci::sections_of(ubus, "network", "interface").await? {
+		if doomed.contains(&interface.name) {
+			uci::delete(ubus, "network", &interface.name).await?;
+		}
+	}
 	if let Some(zone) = wan_zone(ubus).await? {
-		let networks: Vec<String> = zone.list("network").into_iter().filter(|n| n != id).collect();
+		let networks: Vec<String> = zone.list("network").into_iter().filter(|n| !doomed.contains(n)).collect();
 		uci::set(ubus, "firewall", &zone.name, json!({ "network": networks })).await?;
 	}
 	Ok(())

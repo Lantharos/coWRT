@@ -1,9 +1,5 @@
 use std::fmt::Write;
 use std::path::Path;
-use std::process::Stdio;
-
-use tokio::io::AsyncWriteExt;
-use tokio::process::Command;
 
 use super::{MARK_MASK, Policies};
 
@@ -111,22 +107,4 @@ fn limit_rule(out: &mut String, direction: &str, macs: &str, kbit: u32) {
 		"\t\tether {direction} {macs} limit rate over {rate} kbytes/second burst {} kbytes drop",
 		rate / 4 + 16
 	);
-}
-
-pub async fn run(ruleset: &str) -> std::io::Result<()> {
-	let timezone = tokio::fs::read_to_string("/etc/TZ").await.unwrap_or_default();
-	let mut child = Command::new("nft")
-		.args(["-f", "-"])
-		.env("TZ", timezone.trim())
-		.stdin(Stdio::piped())
-		.stderr(Stdio::piped())
-		.spawn()?;
-	child.stdin.take().expect("piped stdin").write_all(ruleset.as_bytes()).await?;
-	let output = child.wait_with_output().await?;
-	if output.status.success() {
-		return Ok(());
-	}
-	Err(std::io::Error::other(
-		String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-	))
 }

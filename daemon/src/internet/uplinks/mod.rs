@@ -10,14 +10,14 @@ use std::time::Duration;
 
 use futures_util::future::join_all;
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{Value, json};
 use tokio::sync::Notify;
 
 use config::{Configured, PRIMARY, configured, import};
 pub use config::{Kind, Settings, add, forget, retire_mwan3, settings, store_settings};
-use decide::{Live, choose, live};
+use decide::{Live, choose, live, live6};
 use health::Tracker;
-use routing::Route;
+use routing::{Family, Route};
 
 use crate::networks::Layout;
 use crate::platform::config::uci;
@@ -35,6 +35,7 @@ pub struct Uplink {
 	pub kind: Kind,
 	pub device: Option<String>,
 	pub connected: bool,
+	pub ipv6: bool,
 	pub online: bool,
 	pub latency_ms: Option<u32>,
 	pub in_use: bool,
@@ -82,7 +83,7 @@ async fn forget_lan_flows(ubus: &Ubus) {
 	let _ = tokio::task::spawn_blocking(move || {
 		conntrack::forget_where(|flow| match flow.source {
 			std::net::IpAddr::V4(ip) => subnets.iter().any(|cidr| cidr.contains(ip)),
-			std::net::IpAddr::V6(_) => false,
+			std::net::IpAddr::V6(ip) => !ip.is_loopback() && !ip.is_unicast_link_local(),
 		})
 	})
 	.await;
@@ -109,21 +110,86 @@ async fn follow_phone(state: &AppState, uplink: &Configured, live: &Live) {
 		.await;
 }
 
-async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steering: &mut bool) {
+async fn pair_phones(state: &AppState) -> Result<(), crate::http::ApiError> {
+	for uplink in configured(&state.ubus).await? {
+		if uplink.kind != Kind::Phone || tether::has_ipv6(&state.ubus, &uplink.id).await? {
+			continue;
+		}
+		state
+			.applier
+			.apply(&state.ubus, &["network", "firewall"], None, async |ubus| {
+				Ok(tether::add_ipv6(ubus, &uplink.id).await?)
+			})
+			.await?;
+	}
+	Ok(())
+}
+
+struct Steering {
+	ipv4: bool,
+	ipv6: Option<String>,
+}
+
+async fn steer_ipv6(target: Option<&(String, Option<String>)>, steering: &mut Steering) {
+	let Some((device, gateway)) = target else {
+		if steering.ipv6.take().is_some() {
+			routing::release(Family::V6).await;
+			let _ = routing::masquerade_ipv6(None).await;
+		}
+		return;
+	};
+	let route = Route {
+		device,
+		gateway: gateway.as_deref(),
+	};
+	if let Err(err) = routing::steer(Family::V6, &route).await {
+		eprintln!("cowrtd: could not route IPv6 through {device}: {err}");
+		return;
+	}
+	if steering.ipv6.as_deref() != Some(device.as_str()) {
+		match routing::masquerade_ipv6(Some(device)).await {
+			Ok(()) => steering.ipv6 = Some(device.clone()),
+			Err(err) => eprintln!("cowrtd: could not share IPv6 through {device}: {err}"),
+		}
+	}
+}
+
+fn interface<'a>(dump: &'a [Value], name: &str) -> Option<&'a Value> {
+	dump.iter()
+		.find(|status| status.get("interface").and_then(Value::as_str) == Some(name))
+}
+
+async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steering: &mut Steering) {
 	let (Ok(uplinks), Ok(settings)) = (configured(&state.ubus).await, settings(&state.ubus).await) else {
 		return;
 	};
 	let now = unix_now();
 	let previous = state.uplinks.status().active;
+	let reply = state
+		.ubus
+		.call("network.interface", "dump", json!({}))
+		.await
+		.unwrap_or_default();
+	let dump = reply
+		.get("interface")
+		.and_then(Value::as_array)
+		.map_or(&[][..], Vec::as_slice);
 	let mut lives = Vec::with_capacity(uplinks.len());
+	let mut routes6 = HashMap::new();
 	for uplink in &uplinks {
-		let reply = state
-			.ubus
-			.call(&format!("network.interface.{}", uplink.id), "status", json!({}))
-			.await
-			.unwrap_or_default();
-		let live = live(&reply);
+		let live = interface(dump, &uplink.id).map(live).unwrap_or_default();
 		follow_phone(state, uplink, &live).await;
+		let ipv6 = tether::ipv6_interfaces(&uplink.id)
+			.iter()
+			.find_map(|name| interface(dump, name).and_then(live6));
+		if let Some(Live {
+			device: Some(device),
+			gateway,
+			..
+		}) = ipv6
+		{
+			routes6.insert(uplink.id.clone(), (device, gateway));
+		}
 		lives.push(live);
 	}
 	let probes = join_all(lives.iter().map(|live| async move {
@@ -151,6 +217,7 @@ async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steerin
 			kind: uplink.kind,
 			device: live.device,
 			connected: live.connected,
+			ipv6: routes6.contains_key(&uplink.id),
 			online: tracker.online,
 			latency_ms: tracker.latency_ms,
 			in_use: false,
@@ -173,18 +240,21 @@ async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steerin
 				device,
 				gateway: gateway.as_deref(),
 			};
-			match routing::steer(&route).await {
-				Ok(()) => *steering = true,
+			match routing::steer(Family::V4, &route).await {
+				Ok(()) => steering.ipv4 = true,
 				Err(err) => eprintln!("cowrtd: could not route through {device}: {err}"),
 			}
 		}
+		let backup = active.as_deref().filter(|id| *id != PRIMARY);
+		steer_ipv6(backup.and_then(|id| routes6.get(id)), steering).await;
 		if previous.is_some() && previous != active {
 			eprintln!("cowrtd: switched internet to {}", active.as_deref().unwrap_or("nothing"));
 			forget_lan_flows(&state.ubus).await;
 		}
-	} else if *steering {
-		routing::release().await;
-		*steering = false;
+	} else if steering.ipv4 {
+		routing::release(Family::V4).await;
+		steering.ipv4 = false;
+		steer_ipv6(None, steering).await;
 	}
 
 	*state.uplinks.status.lock().expect("uplinks lock poisoned") = Status {
@@ -201,8 +271,13 @@ pub fn spawn(state: AppState) {
 		if let Err(err) = import(&state).await {
 			eprintln!("cowrtd: could not look for internet connections: {err}");
 		}
+		if let Err(err) = pair_phones(&state).await {
+			eprintln!("cowrtd: could not set up IPv6 for the phone: {err}");
+		}
+		routing::release(Family::V6).await;
+		let _ = routing::masquerade_ipv6(None).await;
 		let mut trackers = HashMap::new();
-		let mut steering = true;
+		let mut steering = Steering { ipv4: true, ipv6: None };
 		loop {
 			tick(&state, &mut trackers, &mut steering).await;
 			tokio::select! {

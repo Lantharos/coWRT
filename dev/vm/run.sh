@@ -26,7 +26,7 @@ exec qemu-system-x86_64 \
 	-device virtio-net-pci,netdev=wan,mac=52:54:00:12:34:57 \
 	-device virtio-net-pci,mac=52:54:00:12:34:58 \
 	-device virtio-net-pci,mac=52:54:00:12:34:59 \
-	-netdev "user,id=phone,net=10.0.3.0/24" \
+	-netdev "user,id=phone,net=10.0.3.0/24,ipv6-net=fd03::/64" \
 	-device virtio-net-pci,netdev=phone,mac=52:54:00:12:34:5a \
 	-display none \
 	-serial "unix:$dir/console.sock,server,nowait" \

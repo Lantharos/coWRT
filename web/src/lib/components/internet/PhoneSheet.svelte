@@ -45,7 +45,8 @@
 	<div class="flex flex-col gap-5 text-[15px]">
 		{#if phone}
 			<p class={phone.online ? 'text-accent' : 'text-muted'}>
-				{uplinkState(phone)}{#if phone.latencyMs !== null && phone.online}, {phone.latencyMs} ms{/if}
+				{uplinkState(phone)}{#if phone.latencyMs !== null && phone.online}, {phone.latencyMs} ms{/if}{#if phone.ipv6 && phone.online},
+					with IPv6{/if}
 			</p>
 		{/if}
 		<ol class="flex list-decimal flex-col gap-2 pl-5 text-muted marker:text-faint">

@@ -5,21 +5,34 @@ use super::config::{AUTO, Settings};
 
 const STEADY_SECS: u64 = 60;
 
+#[derive(Default)]
 pub struct Live {
 	pub connected: bool,
 	pub device: Option<String>,
 	pub gateway: Option<String>,
 }
 
+fn default_gateway(status: &Value, any: &str) -> Option<String> {
+	status
+		.get("route")?
+		.as_array()?
+		.iter()
+		.find(|route| route.get("target").and_then(Value::as_str) == Some(any))
+		.and_then(|route| route.get("nexthop")?.as_str())
+		.filter(|hop| *hop != any)
+		.map(str::to_owned)
+}
+
 pub fn live(status: &Value) -> Live {
-	let gateway = status.get("route").and_then(Value::as_array).and_then(|routes| {
-		routes
-			.iter()
-			.find(|route| route.get("target").and_then(Value::as_str) == Some("0.0.0.0"))
-			.and_then(|route| route.get("nexthop")?.as_str())
-			.filter(|hop| *hop != "0.0.0.0")
-			.map(str::to_owned)
-	});
+	live_with(status, default_gateway(status, "0.0.0.0"))
+}
+
+pub fn live6(status: &Value) -> Option<Live> {
+	let gateway = default_gateway(status, "::")?;
+	Some(live_with(status, Some(gateway))).filter(|live| live.connected && live.device.is_some())
+}
+
+fn live_with(status: &Value, gateway: Option<String>) -> Live {
 	Live {
 		connected: status.get("up").and_then(Value::as_bool).unwrap_or_default(),
 		device: status.get("l3_device").and_then(Value::as_str).map(str::to_owned),

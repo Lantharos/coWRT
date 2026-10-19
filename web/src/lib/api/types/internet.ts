@@ -65,6 +65,7 @@ export interface Uplink {
 	kind: UplinkKind;
 	device: string | null;
 	connected: boolean;
+	ipv6: boolean;
 	online: boolean;
 	latencyMs: number | null;
 	inUse: boolean;
