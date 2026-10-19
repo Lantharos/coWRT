@@ -50,8 +50,7 @@ async fn latest() -> Result<Release, ApiError> {
 }
 
 async fn architecture() -> Result<String, ApiError> {
-	let output = Command::new("apk").arg("--print-arch").output().await?;
-	Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+	Ok(tokio::fs::read_to_string("/etc/apk/arch").await?.trim().to_owned())
 }
 
 pub async fn check_update() -> ApiResult<UpdateInfo> {
