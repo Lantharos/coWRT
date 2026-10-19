@@ -112,7 +112,9 @@
 		{#if device}
 			<input
 				bind:value={name}
-				placeholder={device.hostname ?? device.mac.toUpperCase()}
+				placeholder={device.customName
+					? (device.hostname ?? device.maker ?? 'Unnamed device')
+					: device.name}
 				onblur={saveName}
 				onkeydown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
 				aria-label="Device name"
@@ -251,6 +253,10 @@
 					})),
 					{ label: 'MAC address', value: device.mac.toUpperCase(), copy: true },
 					{ label: 'Hostname', value: device.hostname },
+					{ label: 'Made by', value: device.maker },
+					...(device.privateAddress
+						? [{ label: 'Address type', value: 'Private, changes per network' }]
+						: []),
 					...(connection?.kind === 'wifi'
 						? [
 								{ label: 'Network', value: `${connection.ssid} · ${bandLabel[connection.band]}` },

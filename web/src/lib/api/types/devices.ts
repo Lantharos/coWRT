@@ -20,6 +20,8 @@ export interface Device {
 	customName: string | null;
 	hostname: string | null;
 	icon: string | null;
+	maker: string | null;
+	privateAddress: boolean;
 	owner: string | null;
 	ipv4: string | null;
 	online: boolean;

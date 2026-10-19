@@ -24,30 +24,38 @@ export const kinds = {
 	laptop: { label: 'Laptop', icon: Laptop, pattern: /macbook|laptop|thinkpad|notebook|book|xps/ },
 	tablet: { label: 'Tablet', icon: Tablet, pattern: /ipad|tab|kindle/ },
 	computer: { label: 'Computer', icon: Monitor, pattern: /desktop|imac|pc|tower|workstation/ },
-	tv: { label: 'TV', icon: Tv, pattern: /tv|chromecast|roku|fire-?stick|shield|appletv|bravia/ },
+	tv: {
+		label: 'TV',
+		icon: Tv,
+		pattern: /tv|chromecast|roku|fire-?stick|shield|appletv|bravia|hisense|tcl|vizio/
+	},
 	console: {
 		label: 'Console',
 		icon: Gamepad2,
-		pattern: /playstation|ps[45]|xbox|switch|nintendo|steam-?deck/
+		pattern: /playstation|ps[45]|xbox|switch|nintendo|steam-?deck|valve/
 	},
 	speaker: {
 		label: 'Speaker',
 		icon: Speaker,
-		pattern: /sonos|echo|homepod|speaker|nest-?(audio|mini)/
+		pattern: /sonos|bose|echo|homepod|speaker|nest-?(audio|mini)/
 	},
-	watch: { label: 'Watch', icon: Watch, pattern: /watch/ },
+	watch: { label: 'Watch', icon: Watch, pattern: /watch|garmin|fitbit|withings/ },
 	printer: {
 		label: 'Printer',
 		icon: Printer,
 		pattern: /printer|epson|brother|canon|hp[a-z0-9-]*jet/
 	},
-	camera: { label: 'Camera', icon: Camera, pattern: /cam|doorbell|ring-/ },
+	camera: { label: 'Camera', icon: Camera, pattern: /cam|doorbell|ring-|^ring$/ },
 	smart: {
 		label: 'Smart home',
 		icon: Lightbulb,
-		pattern: /hue|bulb|plug|shelly|tasmota|esp|tuya|lamp/
+		pattern: /hue|bulb|plug|shelly|tasmota|esp|tuya|lamp|ecobee|irobot|roomba|dyson/
 	},
-	server: { label: 'Server', icon: Server, pattern: /server|nas|synology|pi|proxmox|unraid/ },
+	server: {
+		label: 'Server',
+		icon: Server,
+		pattern: /server|nas|synology|qnap|raspberry|proxmox|unraid/
+	},
 	other: { label: 'Other', icon: MonitorSmartphone, pattern: /$^/ }
 } as const;
 
@@ -55,7 +63,10 @@ export type Kind = keyof typeof kinds;
 
 export function kindOf(device: Device): Kind {
 	if (device.icon && device.icon in kinds) return device.icon as Kind;
-	const name = `${device.customName ?? ''} ${device.hostname ?? ''}`.toLowerCase();
-	const match = (Object.keys(kinds) as Kind[]).find((kind) => kinds[kind].pattern.test(name));
-	return match ?? 'other';
+	const name = `${device.customName ?? ''} ${device.name} ${device.hostname ?? ''}`.toLowerCase();
+	const match = (Object.keys(kinds) as Kind[]).find(
+		(kind) =>
+			kinds[kind].pattern.test(name) || kinds[kind].pattern.test(device.maker?.toLowerCase() ?? '')
+	);
+	return match ?? (device.privateAddress ? 'phone' : 'other');
 }

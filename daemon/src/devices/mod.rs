@@ -1,3 +1,4 @@
+pub mod discovery;
 pub mod people;
 pub mod policy;
 pub mod sources;
@@ -21,6 +22,8 @@ pub struct Device {
 	pub custom_name: Option<String>,
 	pub hostname: Option<String>,
 	pub icon: Option<String>,
+	pub maker: Option<&'static str>,
+	pub private_address: bool,
 	pub owner: Option<String>,
 	pub ipv4: Option<String>,
 	pub ipv6: Vec<String>,
@@ -72,6 +75,8 @@ impl Device {
 			custom_name: None,
 			hostname: None,
 			icon: None,
+			maker: discovery::maker(mac),
+			private_address: discovery::private_address(mac),
 			owner: None,
 			ipv4: None,
 			ipv6: Vec::new(),
@@ -194,8 +199,10 @@ pub async fn inventory(
 			device.name = device
 				.custom_name
 				.clone()
+				.or_else(|| discovery::announced(&device.mac))
 				.or_else(|| device.hostname.clone())
-				.unwrap_or_else(|| device.mac.to_uppercase());
+				.or_else(|| device.maker.map(|maker| format!("{maker} device")))
+				.unwrap_or_else(|| "Unnamed device".to_owned());
 			device
 		})
 		.collect();

@@ -59,6 +59,7 @@ async fn main() {
 	access::forwards::reach::spawn(state.clone());
 	protection::spawn(state.clone());
 	activity::spawn(state.clone());
+	devices::discovery::spawn(state.clone());
 	internet::uplinks::spawn(state.clone());
 
 	let listener = tokio::net::TcpListener::bind(args.listen)
