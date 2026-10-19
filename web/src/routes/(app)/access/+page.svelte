@@ -50,7 +50,16 @@
 		).length
 	);
 
-	const open = $derived(reachable ?? (reach ? !reach.behindNat : null));
+	const open = $derived(reachable ?? reach?.reachable ?? null);
+	const reachDetail = $derived.by(() => {
+		if (!reach || open === null) return undefined;
+		if (open && reach.behindNat)
+			return `Through the router in front of this one, at ${reach.publicIp}.`;
+		if (open) return `Your public address is ${reach.publicIp}.`;
+		if (reach.behindNat)
+			return "There's another router in front of this one, so port forwards and the VPN only work from inside.";
+		return 'Something before this router blocks connections from outside.';
+	});
 	const vpnValue = $derived.by(() => {
 		const server = vpn.data?.server;
 		if (!server?.enabled) return 'Off';
@@ -97,15 +106,9 @@
 	}
 </script>
 
-<PageHeader
-	detail={!reach
-		? undefined
-		: open
-			? `Your public address is ${reach.publicIp}.`
-			: "There's another router in front of this one, so port forwards and the VPN only work from inside."}
->
+<PageHeader detail={reachDetail}>
 	{#snippet headline()}
-		{#if !reach}
+		{#if open === null}
 			<span class="text-muted">Checking how the internet sees you</span>
 		{:else if open}
 			Home is <span class="text-accent">reachable</span> from outside

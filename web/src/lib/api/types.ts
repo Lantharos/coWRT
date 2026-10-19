@@ -288,6 +288,7 @@ export interface Reach {
 	publicIp: string | null;
 	wanIp: string | null;
 	behindNat: boolean;
+	reachable: boolean | null;
 }
 
 export interface UpnpMapping {

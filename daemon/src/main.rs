@@ -56,6 +56,7 @@ async fn main() {
 	}
 	monitor::spawn(state.clone());
 	access::ddns::spawn(state.clone());
+	access::forwards::reach::spawn(state.clone());
 	protection::spawn(state.clone());
 	activity::spawn(state.clone());
 	internet::uplinks::spawn(state.clone());
