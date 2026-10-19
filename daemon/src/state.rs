@@ -8,6 +8,7 @@ use crate::internet::uplinks::Uplinks;
 use crate::monitor::Monitor;
 use crate::platform::config::Applier;
 use crate::platform::ubus::Ubus;
+use crate::system::upgrade::Upgrade;
 
 pub const RUNTIME_DIR: &str = "/tmp/cowrt";
 
@@ -24,6 +25,7 @@ pub struct AppState {
 	pub speedtest: Arc<SpeedTest>,
 	pub activity: Arc<Activity>,
 	pub uplinks: Arc<Uplinks>,
+	pub upgrade: Arc<Upgrade>,
 }
 
 impl AppState {
@@ -37,6 +39,7 @@ impl AppState {
 			speedtest: Arc::default(),
 			activity: Arc::default(),
 			uplinks: Arc::default(),
+			upgrade: Arc::default(),
 		}
 	}
 }

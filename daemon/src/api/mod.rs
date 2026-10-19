@@ -26,6 +26,7 @@ pub fn routes() -> Router<AppState> {
 		.route("/system/logs", get(system::logs))
 		.route("/system/backup", get(system::backup))
 		.route("/system/update", get(system::check_update).post(system::install_update))
+		.route("/system/openwrt", get(system::check_openwrt).post(system::upgrade_openwrt))
 		.route(
 			"/system/restore",
 			post(system::restore).layer(axum::extract::DefaultBodyLimit::max(UPLOAD_LIMIT)),

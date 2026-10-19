@@ -24,7 +24,7 @@
 	import PasswordSheet from '#lib/components/system/PasswordSheet.svelte';
 	import RestartSheet from '#lib/components/system/RestartSheet.svelte';
 	import RouterSheet from '#lib/components/system/RouterSheet.svelte';
-	import UpdatesSheet from '#lib/components/system/UpdatesSheet.svelte';
+	import UpdatesSheet from '#lib/components/system/updates/UpdatesSheet.svelte';
 	import List from '#lib/components/ui/List.svelte';
 	import PageHeader from '#lib/components/ui/PageHeader.svelte';
 	import Row from '#lib/components/ui/Row.svelte';

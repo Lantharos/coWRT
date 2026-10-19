@@ -62,6 +62,17 @@ export interface UpdateInfo {
 	available: boolean;
 }
 
+export type UpgradeProgress =
+	| { stage: 'idle' | 'preparing' | 'building' | 'verifying' | 'installing' }
+	| { stage: 'failed'; reason: string };
+
+export interface OpenWrtInfo {
+	current: string;
+	latest: string | null;
+	available: boolean;
+	progress: UpgradeProgress;
+}
+
 export interface LogEntry {
 	time: number;
 	level: 'error' | 'warning' | 'info' | 'debug';

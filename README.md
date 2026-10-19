@@ -10,7 +10,7 @@ A modern interface for OpenWrt routers. coWRT replaces LuCI with a fast, friendl
 - **Networks**: groups of devices with their own IPv4 range and IPv6 prefix, ports, Wi-Fi and rules. Plus the internet connection (automatic, fixed or PPPoE, with an optional VLAN tag) with a backup like a tethered phone, IPv6 with prefix delegation, a speed test that also measures lag under load, a smart queue against bufferbloat that can set itself from the speed test, acceleration, local names like `nas.lan` and static routes.
 - **Access**: a reachability test, port forwards that also open over IPv6, automatic port forwarding (UPnP and NAT-PMP), dynamic DNS on Cloudflare, a WireGuard VPN with QR codes, and routing whole networks through a VPN provider with a kill switch.
 - **Security**: ad, tracker and threat blocking per network with a running count of what was blocked, an allow list, and encrypted DNS.
-- **System**: health charts, router name and time zone, password, backups, firmware, restarts, logs and coWRT updates.
+- **System**: health charts, router name and time zone, password, backups, firmware, restarts, logs, and updates for both coWRT and OpenWrt.
 
 Press ⌘K (or Ctrl+K, or /) anywhere to jump to a device, person, network or setting. On a fresh router, coWRT starts with a short setup: a password, the Wi-Fi name and the time zone. It can be added to a phone's home screen like an app.
 
@@ -43,6 +43,10 @@ coWRT keeps its own nftables tables next to the stock firewall. Pausing a device
 The router can keep a second connection as a backup, like a phone plugged into its USB port with tethering on. Every few seconds coWRT checks each connection for real internet, not just a link light. When the main line stops answering it moves traffic to the backup, and once the main line has been steady for a minute it moves back. You can also pin either connection by hand. Under the hood the active connection's route lives in its own routing table, so switching never touches the interfaces themselves.
 
 Setting up a phone installs the USB tethering drivers for Android and iPhone. The router notices when a phone is plugged in and uses it whatever name its network device gets. If the phone offers IPv6, that moves over too: phones share a single /64 rather than delegating a prefix, so while the backup is in use the router translates your devices' IPv6 addresses to its own address on the phone, and stops as soon as it moves back. coWRT replaces mwan3 for this, so it turns mwan3 off when it takes over.
+
+## OpenWrt updates
+
+When a newer OpenWrt release is out, System → Updates offers it. coWRT uses OpenWrt's own upgrade tool to have the sysupgrade server build an image for this router with every package you've installed, checks the image, then installs it with your settings kept. coWRT isn't in OpenWrt's package feeds, so it isn't part of that image; instead its packages' dependencies are, and coWRT's own files are carried across the upgrade the same way your settings are, so it's running again as soon as the router is back. Building happens on the server, so your internet keeps working until the install starts.
 
 ## IPv6
 
