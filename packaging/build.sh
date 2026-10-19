@@ -37,12 +37,12 @@ for arch in "${arches[@]}"; do
 	cp "$root/daemon/target/$target/release/cowrtd" "$stage/"
 	cp -r "$root/web/build" "$stage/www"
 
-	podman run --rm --userns=keep-id \
+	podman run --rm --userns=keep-id:uid=1000,gid=1000 \
 		-v "$root/packaging/openwrt/cowrt:/builder/package/cowrt:ro,z" \
 		-v "$stage:/stage:ro,z" \
 		-v "$root/dist:/out:z" \
 		"$(sdk_image "$arch")" \
-		bash -c "make defconfig >/dev/null && make package/cowrt/compile COWRT_STAGE=/stage COWRT_VERSION=$version >/dev/null && find bin/packages -name 'cowrt-*.apk' -exec cp {} /out/cowrt-$version-$arch.apk \;"
+		bash -c "make defconfig >/dev/null && { make package/cowrt/compile COWRT_STAGE=/stage COWRT_VERSION=$version V=s >/tmp/build.log 2>&1 || { tail -n 60 /tmp/build.log; exit 1; }; } && find bin/packages -name 'cowrt-*.apk' -exec cp {} /out/cowrt-$version-$arch.apk \;"
 	rm -rf "$stage"
 	trap - EXIT
 done
