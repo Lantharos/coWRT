@@ -14,7 +14,7 @@
 	import TextField from '#lib/components/ui/controls/TextField.svelte';
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import ActivityView from './ActivityView.svelte';
-	import DeviceControls from './DeviceControls.svelte';
+	import ControlsEditor from './ControlsEditor.svelte';
 	import Sparkline from '#lib/components/charts/Sparkline.svelte';
 	import { kinds, kindOf, type Kind } from './kinds';
 	import { recentSignal, signalLabel } from './signal';
@@ -187,7 +187,11 @@
 
 			<ActivityView source="/devices/{device.mac}/activity" />
 
-			<DeviceControls {device} {onchange} />
+			<ControlsEditor
+				id={device.mac}
+				controls={device.controls}
+				onsave={(change) => api.patch(`/devices/${device.mac}`, change).then(onchange)}
+			/>
 
 			<div class="flex flex-col">
 				{#if people.length}

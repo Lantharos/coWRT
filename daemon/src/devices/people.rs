@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::devices::policy::Schedule;
+use crate::devices::policy::Controls;
 use crate::http::ApiError;
 use crate::platform::config::uci::{self, Section};
 use crate::platform::ubus::{self, Ubus};
@@ -14,8 +14,8 @@ pub struct Person {
 	pub id: String,
 	pub name: String,
 	pub color: String,
-	pub blocked: bool,
-	pub schedules: Vec<Schedule>,
+	#[serde(flatten)]
+	pub controls: Controls,
 }
 
 #[derive(Deserialize)]
@@ -23,8 +23,8 @@ pub struct Person {
 pub struct PersonInput {
 	name: String,
 	color: String,
-	pub blocked: bool,
-	schedules: Vec<Schedule>,
+	#[serde(flatten)]
+	pub controls: Controls,
 }
 
 impl Person {
@@ -33,12 +33,7 @@ impl Person {
 			id: section.name.clone(),
 			name: section.get("name").unwrap_or(&section.name).to_owned(),
 			color: section.get("color").unwrap_or(COLORS[0]).to_owned(),
-			blocked: section.flag("blocked"),
-			schedules: section
-				.list("schedule")
-				.iter()
-				.filter_map(|entry| Schedule::parse(entry))
-				.collect(),
+			controls: Controls::from_section(section),
 		}
 	}
 }
@@ -59,10 +54,7 @@ fn validate(input: &PersonInput) -> Result<(), ApiError> {
 	if !COLORS.contains(&input.color.as_str()) {
 		return Err(ApiError::bad_request("Pick one of the colors"));
 	}
-	for schedule in &input.schedules {
-		schedule.validate().map_err(ApiError::bad_request)?;
-	}
-	Ok(())
+	input.controls.validate().map_err(ApiError::bad_request)
 }
 
 pub fn new_id() -> String {
@@ -71,18 +63,9 @@ pub fn new_id() -> String {
 
 pub async fn store(ubus: &Ubus, id: &str, input: &PersonInput) -> Result<(), ApiError> {
 	validate(input)?;
-	let values = json!({
-		"name": input.name.trim(),
-		"color": input.color,
-		"blocked": if input.blocked { "1" } else { "0" },
-	});
+	let values = json!({ "name": input.name.trim(), "color": input.color });
 	uci::upsert(ubus, "cowrt", "person", id, values).await?;
-	uci::unset(ubus, "cowrt", id, &["schedule"]).await?;
-	if !input.schedules.is_empty() {
-		let entries: Vec<String> = input.schedules.iter().map(Schedule::to_uci).collect();
-		uci::set(ubus, "cowrt", id, json!({ "schedule": entries })).await?;
-	}
-	Ok(())
+	Ok(input.controls.store(ubus, id).await?)
 }
 
 pub async fn remove(ubus: &Ubus, id: &str) -> Result<(), ubus::Error> {

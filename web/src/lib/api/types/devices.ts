@@ -31,7 +31,7 @@ export interface Device {
 	isYou: boolean;
 	network: string | null;
 	ipv6: string[];
-	controls: DeviceControls;
+	controls: Controls;
 	usage: DeviceUsage;
 	signals: number[];
 }
@@ -46,7 +46,7 @@ export interface Schedule {
 
 export type Priority = 'low' | 'normal' | 'high';
 
-export interface DeviceControls {
+export interface Controls {
 	blocked: boolean;
 	schedules: Schedule[];
 	limitDown: number | null;
@@ -62,12 +62,10 @@ export interface DeviceUsage {
 	recent: number[];
 }
 
-export interface Person {
+export interface Person extends Controls {
 	id: string;
 	name: string;
 	color: Color;
-	blocked: boolean;
-	schedules: Schedule[];
 }
 
 export interface SiteActivity {

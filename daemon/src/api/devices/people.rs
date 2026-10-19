@@ -22,7 +22,7 @@ async fn save(state: &AppState, id: &str, input: &PersonInput) -> Result<(), Api
 	policy::apply(&state.ubus)
 		.await
 		.map_err(|err| ApiError::conflict(format!("The router rejected the new rules: {err}")))?;
-	if input.blocked {
+	if input.controls.blocked {
 		for device in uci::sections_of(&state.ubus, "cowrt", "device").await? {
 			if device.get("owner") == Some(id)
 				&& let Some(mac) = device.get("mac")

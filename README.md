@@ -5,7 +5,7 @@ A modern interface for OpenWrt routers. coWRT replaces LuCI with a fast, friendl
 ## What it does
 
 - **Overview**: whether you're online, how many devices are connected, today's usage and live speed.
-- **Devices**: every device with its network, signal history, live speed, 30 days of usage and the sites it looked up today. Rename it, reserve its address, wake it up, pause its internet, set quiet times, cap its speed or give it priority. Group devices under people to pause them together or give them a bedtime.
+- **Devices**: every device with its network, signal history, live speed, 30 days of usage and the sites it looked up today. Rename it, reserve its address, wake it up, pause its internet, set quiet times, cap its speed or give it priority. Group devices under people to pause them together, give them a bedtime, share one speed limit across their devices or set their priority.
 - **Wi-Fi**: networks spanning every band, which network their devices join, QR codes for joining, guest networks that turn themselves off, fast roaming and band steering, and per-radio channel, width and power with a scan for the quietest channel.
 - **Networks**: groups of devices with their own IPv4 range and IPv6 prefix, ports, Wi-Fi and rules. Plus the internet connection (automatic, fixed or PPPoE, with an optional VLAN tag) with a backup like a tethered phone, IPv6 with prefix delegation, a speed test that also measures lag under load, a smart queue against bufferbloat that can set itself from the speed test, acceleration, local names like `nas.lan` and static routes.
 - **Access**: a reachability test, port forwards that also open over IPv6, automatic port forwarding (UPnP and NAT-PMP), dynamic DNS on Cloudflare, a WireGuard VPN with QR codes, and routing whole networks through a VPN provider with a kill switch.
@@ -36,7 +36,7 @@ Changes that could cut you off, like editing a network, a port or the internet c
 
 ## Device rules and usage
 
-coWRT keeps its own nftables tables next to the stock firewall. Pausing a device or giving it quiet times adds rules on the forward path, speed limits are enforced on each network's interface, and priority marks connections so the smart queue (cake on the WAN) can serve them first or last. Per-device speeds and daily totals come from connection tracking, so they're counted even when acceleration is on, but limits and priority only apply to traffic the router's processor sees.
+coWRT keeps its own nftables tables next to the stock firewall. Pausing a device or giving it quiet times adds rules on the forward path, speed limits are enforced on each network's interface, and priority marks connections so the smart queue (cake on the WAN) can serve them first or last. Per-device speeds and daily totals come from the Wi-Fi driver and switch port counters, with connection tracking for devices that share a port, so they're counted even when acceleration is on, but limits and priority only apply to traffic the router's processor sees.
 
 ## Backup connections
 

@@ -5,7 +5,7 @@ use std::process::Stdio;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
-use super::{DevicePolicy, MARK_MASK};
+use super::{MARK_MASK, Policies};
 
 pub fn device_exists(name: &str) -> bool {
 	Path::new("/sys/class/net").join(name).exists()
@@ -20,7 +20,7 @@ fn kbytes(kbit: u32) -> u32 {
 	(kbit / 8).max(1)
 }
 
-pub fn render(policies: &[DevicePolicy], devices: &[String], redirects: &[(String, u16)]) -> String {
+pub fn render(policies: &Policies, devices: &[String], redirects: &[(String, u16)]) -> String {
 	let mut out = String::from("table inet cowrt\ndelete table inet cowrt\ntable netdev cowrt\ndelete table netdev cowrt\n");
 	let leaves_home = if devices.is_empty() {
 		String::new()
@@ -29,7 +29,7 @@ pub fn render(policies: &[DevicePolicy], devices: &[String], redirects: &[(Strin
 	};
 
 	out.push_str("table inet cowrt {\n\tchain forward {\n\t\ttype filter hook forward priority filter - 5; policy accept;\n");
-	for policy in policies {
+	for policy in &policies.devices {
 		let mac = &policy.mac;
 		let controls = &policy.controls;
 		if controls.blocked {
@@ -62,11 +62,19 @@ pub fn render(policies: &[DevicePolicy], devices: &[String], redirects: &[(Strin
 	}
 	out.push_str("}\n");
 
-	let limited: Vec<&DevicePolicy> = policies
+	let limits: Vec<(String, Option<u32>, Option<u32>)> = policies
+		.devices
 		.iter()
-		.filter(|p| p.controls.limit_down.is_some() || p.controls.limit_up.is_some())
+		.map(|p| (p.mac.clone(), p.controls.limit_down, p.controls.limit_up))
+		.chain(
+			policies
+				.shared
+				.iter()
+				.map(|shared| (macs(&shared.macs), shared.down, shared.up)),
+		)
+		.filter(|(_, down, up)| down.is_some() || up.is_some())
 		.collect();
-	if limited.is_empty() || devices.is_empty() {
+	if limits.is_empty() || devices.is_empty() {
 		return out;
 	}
 	let hooked = quoted(devices);
@@ -74,34 +82,35 @@ pub fn render(policies: &[DevicePolicy], devices: &[String], redirects: &[(Strin
 		out,
 		"table netdev cowrt {{\n\tchain ingress {{\n\t\ttype filter hook ingress devices = {hooked} priority -500; policy accept;"
 	);
-	for policy in &limited {
-		if let Some(up) = policy.controls.limit_up {
-			let rate = kbytes(up);
-			let _ = writeln!(
-				out,
-				"\t\tether saddr {} limit rate over {rate} kbytes/second burst {} kbytes drop",
-				policy.mac,
-				rate / 4 + 16
-			);
+	for (macs, _, up) in &limits {
+		if let Some(up) = up {
+			limit_rule(&mut out, "saddr", macs, *up);
 		}
 	}
 	let _ = writeln!(
 		out,
 		"\t}}\n\tchain egress {{\n\t\ttype filter hook egress devices = {hooked} priority -500; policy accept;"
 	);
-	for policy in &limited {
-		if let Some(down) = policy.controls.limit_down {
-			let rate = kbytes(down);
-			let _ = writeln!(
-				out,
-				"\t\tether daddr {} limit rate over {rate} kbytes/second burst {} kbytes drop",
-				policy.mac,
-				rate / 4 + 16
-			);
+	for (macs, down, _) in &limits {
+		if let Some(down) = down {
+			limit_rule(&mut out, "daddr", macs, *down);
 		}
 	}
 	out.push_str("\t}\n}\n");
 	out
+}
+
+fn macs(list: &[String]) -> String {
+	format!("{{ {} }}", list.join(", "))
+}
+
+fn limit_rule(out: &mut String, direction: &str, macs: &str, kbit: u32) {
+	let rate = kbytes(kbit);
+	let _ = writeln!(
+		out,
+		"\t\tether {direction} {macs} limit rate over {rate} kbytes/second burst {} kbytes drop",
+		rate / 4 + 16
+	);
 }
 
 pub async fn run(ruleset: &str) -> std::io::Result<()> {

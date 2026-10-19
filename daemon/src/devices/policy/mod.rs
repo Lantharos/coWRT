@@ -4,6 +4,7 @@ mod schedule;
 use std::net::IpAddr;
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 pub use schedule::Schedule;
 
@@ -12,6 +13,14 @@ use crate::platform::config::uci::{self, Section};
 use crate::platform::ubus::{self, Ubus};
 
 pub const MARK_MASK: u32 = 0xf0;
+const MAX_LIMIT_KBIT: u32 = 10_000_000;
+
+pub fn check_limit(kbit: u32) -> Result<(), String> {
+	if kbit == 0 || kbit > MAX_LIMIT_KBIT {
+		return Err("Speed limits go from 1 Kbps to 10 Gbps".into());
+	}
+	Ok(())
+}
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -48,8 +57,8 @@ impl Priority {
 	}
 }
 
-#[derive(Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Controls {
 	pub blocked: bool,
 	pub schedules: Vec<Schedule>,
@@ -73,6 +82,34 @@ impl Controls {
 		}
 	}
 
+	pub fn validate(&self) -> Result<(), String> {
+		for schedule in &self.schedules {
+			schedule.validate()?;
+		}
+		for limit in [self.limit_down, self.limit_up].into_iter().flatten() {
+			check_limit(limit)?;
+		}
+		Ok(())
+	}
+
+	pub async fn store(&self, ubus: &Ubus, section: &str) -> Result<(), ubus::Error> {
+		uci::unset(ubus, "cowrt", section, &["schedule", "limit_down", "limit_up", "priority"]).await?;
+		let mut values = json!({ "blocked": if self.blocked { "1" } else { "0" } });
+		if !self.schedules.is_empty() {
+			values["schedule"] = json!(self.schedules.iter().map(Schedule::to_uci).collect::<Vec<_>>());
+		}
+		if let Some(down) = self.limit_down {
+			values["limit_down"] = json!(down.to_string());
+		}
+		if let Some(up) = self.limit_up {
+			values["limit_up"] = json!(up.to_string());
+		}
+		if let Some(priority) = self.priority.uci() {
+			values["priority"] = json!(priority);
+		}
+		uci::set(ubus, "cowrt", section, values).await
+	}
+
 	fn is_active(&self) -> bool {
 		self.blocked
 			|| !self.schedules.is_empty()
@@ -87,21 +124,50 @@ pub struct DevicePolicy {
 	pub controls: Controls,
 }
 
-pub async fn load(ubus: &Ubus) -> Result<Vec<DevicePolicy>, ubus::Error> {
+pub struct SharedLimit {
+	pub macs: Vec<String>,
+	pub down: Option<u32>,
+	pub up: Option<u32>,
+}
+
+pub struct Policies {
+	pub devices: Vec<DevicePolicy>,
+	pub shared: Vec<SharedLimit>,
+}
+
+pub async fn load(ubus: &Ubus) -> Result<Policies, ubus::Error> {
 	let people = crate::devices::people::list(ubus).await?;
-	Ok(uci::sections_of(ubus, "cowrt", "device")
-		.await?
+	let sections = uci::sections_of(ubus, "cowrt", "device").await?;
+	let devices = sections
 		.iter()
 		.filter_map(|section| {
 			let mut controls = Controls::from_section(section);
 			if let Some(person) = section.get("owner").and_then(|id| people.iter().find(|p| p.id == id)) {
-				controls.blocked |= person.blocked;
-				controls.schedules.extend(person.schedules.iter().cloned());
+				controls.blocked |= person.controls.blocked;
+				controls.schedules.extend(person.controls.schedules.iter().cloned());
+				if controls.priority == Priority::Normal {
+					controls.priority = person.controls.priority;
+				}
 			}
 			let mac = section.get("mac")?.to_ascii_lowercase();
 			controls.is_active().then_some(DevicePolicy { mac, controls })
 		})
-		.collect())
+		.collect();
+	let shared = people
+		.iter()
+		.filter(|person| person.controls.limit_down.is_some() || person.controls.limit_up.is_some())
+		.map(|person| SharedLimit {
+			macs: sections
+				.iter()
+				.filter(|section| section.get("owner") == Some(person.id.as_str()))
+				.filter_map(|section| section.get("mac").map(str::to_ascii_lowercase))
+				.collect(),
+			down: person.controls.limit_down,
+			up: person.controls.limit_up,
+		})
+		.filter(|limit| !limit.macs.is_empty())
+		.collect();
+	Ok(Policies { devices, shared })
 }
 
 pub fn lan_devices(layout: &Layout) -> Vec<String> {

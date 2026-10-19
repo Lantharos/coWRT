@@ -113,7 +113,7 @@
 			onclick={() =>
 				(draft = { days: ['sun', 'mon', 'tue', 'wed', 'thu'], from: '22:00', to: '07:00' })}
 		>
-			<Plus size={15} /> Add a quiet time
+			<Plus size={15} /> Add a time
 		</Button>
 	{/if}
 </div>

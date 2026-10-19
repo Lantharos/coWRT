@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { api } from '#lib/api/client.js';
-	import type { Device, Priority, Schedule } from '#lib/api/types.js';
+	import type { Controls, Priority, Schedule } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
@@ -10,8 +9,13 @@
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
 	import Schedules from './Schedules.svelte';
 
-	type Props = { device: Device; onchange: () => void };
-	let { device, onchange }: Props = $props();
+	type Props = {
+		id: string;
+		controls: Controls;
+		person?: string;
+		onsave: (change: Partial<Controls>) => Promise<unknown>;
+	};
+	let { id, controls, person, onsave }: Props = $props();
 
 	let busy = $state<string | null>(null);
 	let limited = $state(false);
@@ -19,27 +23,23 @@
 	let up = $state('');
 	let priority = $state<Priority>('normal');
 
-	const key = $derived(
-		`${device.mac}|${device.controls.limitDown}|${device.controls.limitUp}|${device.controls.priority}`
-	);
+	const key = $derived(`${id}|${controls.limitDown}|${controls.limitUp}|${controls.priority}`);
 
 	$effect.pre(() => {
 		if (!key) return;
 		untrack(() => {
-			const { limitDown, limitUp } = device.controls;
-			limited = limitDown !== null || limitUp !== null;
-			down = limitDown ? String(limitDown / 1000) : '';
-			up = limitUp ? String(limitUp / 1000) : '';
-			priority = device.controls.priority;
+			limited = controls.limitDown !== null || controls.limitUp !== null;
+			down = controls.limitDown ? String(controls.limitDown / 1000) : '';
+			up = controls.limitUp ? String(controls.limitUp / 1000) : '';
+			priority = controls.priority;
 		});
 	});
 
-	async function patch(task: string, body: Record<string, unknown>, message: string) {
+	async function save(task: string, change: Partial<Controls>, message: string) {
 		busy = task;
 		try {
-			await api.patch(`/devices/${device.mac}`, body);
+			await onsave(change);
 			toasts.show(message);
-			onchange();
 		} catch (err) {
 			toasts.error(err);
 		} finally {
@@ -50,10 +50,10 @@
 	const kbit = (mbps: string) => (mbps.trim() ? Math.round(Number(mbps) * 1000) : null);
 
 	function saveLimits() {
-		const body = limited
+		const change = limited
 			? { limitDown: kbit(down), limitUp: kbit(up) }
 			: { limitDown: null, limitUp: null };
-		patch('limits', body, limited ? 'Speed limit saved' : 'Speed limit removed');
+		save('limits', change, limited ? 'Speed limit saved' : 'Speed limit removed');
 	}
 
 	function setPriority(next: Priority) {
@@ -63,28 +63,47 @@
 			normal: 'Back to normal',
 			high: 'Goes first now'
 		};
-		patch('priority', { priority: next }, message[next]);
+		save('priority', { priority: next }, message[next]);
+	}
+
+	function setInternet(on: boolean) {
+		const message = person
+			? on
+				? `${person} is back online`
+				: `Paused ${person}`
+			: on
+				? 'Internet is back on'
+				: 'Internet paused';
+		save('blocked', { blocked: !on }, message);
 	}
 
 	const limitsChanged = $derived(
-		limited !== (device.controls.limitDown !== null || device.controls.limitUp !== null) ||
-			(limited &&
-				(kbit(down) !== device.controls.limitDown || kbit(up) !== device.controls.limitUp))
+		limited !== (controls.limitDown !== null || controls.limitUp !== null) ||
+			(limited && (kbit(down) !== controls.limitDown || kbit(up) !== controls.limitUp))
 	);
 </script>
 
 <div class="flex flex-col">
-	<Setting title="Internet" hint={device.controls.blocked ? 'Paused, home still works' : undefined}>
+	<Setting
+		title="Internet"
+		hint={controls.blocked
+			? person
+				? 'Paused on all their devices'
+				: 'Paused, home still works'
+			: undefined}
+	>
 		<Toggle
-			checked={!device.controls.blocked}
+			checked={!controls.blocked}
 			label="Internet access"
 			disabled={busy === 'blocked'}
-			onchange={(on) =>
-				patch('blocked', { blocked: !on }, on ? 'Internet is back on' : 'Internet paused')}
+			onchange={setInternet}
 		/>
 	</Setting>
 
-	<Setting title="Priority" hint="When the connection is busy">
+	<Setting
+		title="Priority"
+		hint={person ? 'For their devices when the connection is busy' : 'When the connection is busy'}
+	>
 		<div class="w-56">
 			<Segmented
 				value={priority}
@@ -98,7 +117,10 @@
 		</div>
 	</Setting>
 
-	<Setting title="Speed limit" hint={limited ? 'In Mbps' : undefined}>
+	<Setting
+		title="Speed limit"
+		hint={limited ? (person ? 'In Mbps, shared by all their devices' : 'In Mbps') : undefined}
+	>
 		<Toggle bind:checked={limited} label="Speed limit" />
 	</Setting>
 	{#if limited}
@@ -112,11 +134,18 @@
 		>
 	{/if}
 
-	<Setting title="Quiet times" hint="No internet during these hours" stacked>
+	<Setting
+		title={person ? 'Bedtime' : 'Quiet times'}
+		hint={person
+			? 'No internet on their devices during these hours'
+			: 'No internet during these hours'}
+		stacked
+	>
 		<Schedules
-			schedules={device.controls.schedules}
+			schedules={controls.schedules}
 			busy={busy === 'schedules'}
-			onsave={(schedules: Schedule[]) => patch('schedules', { schedules }, 'Quiet times saved')}
+			onsave={(schedules: Schedule[]) =>
+				save('schedules', { schedules }, person ? 'Bedtime saved' : 'Quiet times saved')}
 		/>
 	</Setting>
 </div>

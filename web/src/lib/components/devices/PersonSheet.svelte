@@ -2,10 +2,9 @@
 	import { untrack } from 'svelte';
 	import { Trash2 } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
-	import type { Color, Device, Person, Schedule } from '#lib/api/types.js';
+	import type { Color, Controls, Device, Person } from '#lib/api/types.js';
 	import { bytes, joined } from '#lib/format.js';
 	import { toasts } from '#lib/toast.svelte.js';
-	import Schedules from '#lib/components/devices/Schedules.svelte';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import ColorPicker from '#lib/components/ui/controls/ColorPicker.svelte';
 	import TextField from '#lib/components/ui/controls/TextField.svelte';
@@ -14,6 +13,7 @@
 	import Sheet from '#lib/components/ui/Sheet.svelte';
 	import ActivityView from './ActivityView.svelte';
 	import Avatar from './Avatar.svelte';
+	import ControlsEditor from './ControlsEditor.svelte';
 
 	type Props = {
 		person: Person | 'new' | null;
@@ -52,14 +52,26 @@
 		!!existing && (name.trim() !== existing.name || color !== existing.color)
 	);
 
-	async function put(change: Partial<Person>, message: string, task: string) {
+	async function put(person: Person, change: Partial<Controls>) {
+		const { blocked, schedules, limitDown, limitUp, priority } = { ...person, ...change };
+		await api.put(`/people/${person.id}`, {
+			name: name.trim(),
+			color,
+			blocked,
+			schedules,
+			limitDown,
+			limitUp,
+			priority
+		});
+		onsaved(person.id);
+	}
+
+	async function rename() {
 		if (!existing) return;
-		busy = task;
+		busy = 'rename';
 		try {
-			const { blocked, schedules } = { ...existing, ...change };
-			await api.put(`/people/${existing.id}`, { name: name.trim(), color, blocked, schedules });
-			toasts.show(message);
-			onsaved(existing.id);
+			await put(existing, {});
+			toasts.show('Saved');
 		} catch (err) {
 			toasts.error(err);
 		} finally {
@@ -70,12 +82,7 @@
 	async function create() {
 		busy = 'create';
 		try {
-			const id = await api.post<string>('/people', {
-				name: name.trim(),
-				color,
-				blocked: false,
-				schedules: []
-			});
+			const id = await api.post<string>('/people', { name: name.trim(), color });
 			toasts.show(`${name.trim()} added`);
 			onsaved(id);
 		} catch (err) {
@@ -132,31 +139,12 @@
 
 	<div class="flex flex-col gap-8">
 		{#if existing}
-			<div class="flex flex-col">
-				<Setting
-					title="Internet"
-					hint={existing.blocked ? 'Paused on all their devices' : undefined}
-				>
-					<Toggle
-						checked={!existing.blocked}
-						label="Internet"
-						disabled={busy === 'blocked'}
-						onchange={(on) =>
-							put(
-								{ blocked: !on },
-								on ? `${existing.name} is back online` : `Paused ${existing.name}`,
-								'blocked'
-							)}
-					/>
-				</Setting>
-				<Setting title="Bedtime" hint="No internet on their devices during these hours" stacked>
-					<Schedules
-						schedules={existing.schedules}
-						busy={busy === 'schedules'}
-						onsave={(schedules: Schedule[]) => put({ schedules }, 'Bedtime saved', 'schedules')}
-					/>
-				</Setting>
-			</div>
+			<ControlsEditor
+				id={existing.id}
+				controls={existing}
+				person={existing.name}
+				onsave={(change) => put(existing, change)}
+			/>
 
 			<ActivityView source="/people/{existing.id}/activity" />
 
@@ -194,13 +182,7 @@
 				{confirmDelete ? 'Really remove?' : 'Remove'}
 			</Button>
 			{#if renamed}
-				<Button
-					variant="primary"
-					onclick={() => put({}, 'Saved', 'rename')}
-					busy={busy === 'rename'}
-				>
-					Save
-				</Button>
+				<Button variant="primary" onclick={rename} busy={busy === 'rename'}>Save</Button>
 			{/if}
 		{:else}
 			<Button onclick={onclose}>Cancel</Button>

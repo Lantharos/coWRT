@@ -7,16 +7,12 @@ use crate::http::ApiError;
 use crate::platform::config::uci;
 use crate::state::AppState;
 
-const MAX_LIMIT_KBIT: u32 = 10_000_000;
-
 fn validate(body: &DeviceUpdate) -> Result<(), ApiError> {
 	for schedule in body.schedules.iter().flatten() {
 		schedule.validate().map_err(ApiError::bad_request)?;
 	}
 	for limit in [body.limit_down, body.limit_up].into_iter().flatten().flatten() {
-		if limit == 0 || limit > MAX_LIMIT_KBIT {
-			return Err(ApiError::bad_request("Speed limits go from 1 Kbps to 10 Gbps"));
-		}
+		policy::check_limit(limit).map_err(ApiError::bad_request)?;
 	}
 	Ok(())
 }
