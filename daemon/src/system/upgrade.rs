@@ -74,8 +74,7 @@ impl Upgrade {
 	}
 
 	pub async fn run(&self, version: &str) {
-		let outcome = upgrade(self, version).await;
-		if let Err(reason) = outcome {
+		if let Err(reason) = upgrade(self, version).await {
 			let _ = tokio::fs::remove_file(KEEP).await;
 			self.set(Progress::Failed { reason });
 		}
