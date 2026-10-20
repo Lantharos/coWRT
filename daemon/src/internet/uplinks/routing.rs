@@ -74,12 +74,32 @@ pub async fn release(family: Family) {
 	let _ = ip(family, &["route", "flush", "table", TABLE]).await;
 }
 
-pub async fn masquerade_ipv6(device: Option<&str>) -> io::Result<()> {
+pub enum Ipv6Rules<'a> {
+	None,
+	Masquerade(&'a str),
+	Refuse(&'a str),
+}
+
+const LINK_SCOPED: &str = "{ fe80::/10, ff00::/8 }";
+
+fn refuse_chain(name: &str, hook: &str, device: &str) -> String {
+	format!(
+		"\tchain {name} {{\n\t\ttype filter hook {hook} priority filter - 10; policy accept;\n\t\toifname \"{device}\" ip6 daddr != {LINK_SCOPED} meta l4proto tcp reject with tcp reset\n\t\toifname \"{device}\" ip6 daddr != {LINK_SCOPED} reject with icmpv6 admin-prohibited\n\t}}\n"
+	)
+}
+
+pub async fn ipv6_rules(rules: Ipv6Rules<'_>) -> io::Result<()> {
 	let mut ruleset = format!("table ip6 {NAT_TABLE}\ndelete table ip6 {NAT_TABLE}\n");
-	if let Some(device) = device {
-		ruleset.push_str(&format!(
+	match rules {
+		Ipv6Rules::None => {}
+		Ipv6Rules::Masquerade(device) => ruleset.push_str(&format!(
 			"table ip6 {NAT_TABLE} {{\n\tchain postrouting {{\n\t\ttype nat hook postrouting priority srcnat; policy accept;\n\t\toifname \"{device}\" masquerade\n\t}}\n}}\n"
-		));
+		)),
+		Ipv6Rules::Refuse(device) => ruleset.push_str(&format!(
+			"table ip6 {NAT_TABLE} {{\n{}{}}}\n",
+			refuse_chain("forward", "forward", device),
+			refuse_chain("output", "output", device)
+		)),
 	}
 	nft::run(&ruleset).await
 }

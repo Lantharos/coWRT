@@ -17,7 +17,7 @@ use config::{Configured, PRIMARY, configured, import};
 pub use config::{Kind, Settings, add, forget, retire_mwan3, settings, store_settings};
 use decide::{Live, choose, live, live6};
 use health::Tracker;
-use routing::{Family, Route};
+use routing::{Family, Ipv6Rules, Route};
 
 use crate::networks::Layout;
 use crate::platform::config::uci;
@@ -125,32 +125,53 @@ async fn pair_phones(state: &AppState) -> Result<(), crate::http::ApiError> {
 	Ok(())
 }
 
-struct Steering {
-	ipv4: bool,
-	ipv6: Option<String>,
+#[derive(PartialEq)]
+enum Ipv6Route {
+	Native,
+	Refused(String),
+	Through(String),
 }
 
-async fn steer_ipv6(target: Option<&(String, Option<String>)>, steering: &mut Steering) {
-	let Some((device, gateway)) = target else {
-		if steering.ipv6.take().is_some() {
-			routing::release(Family::V6).await;
-			let _ = routing::masquerade_ipv6(None).await;
+enum Ipv6Plan<'a> {
+	Native,
+	Refuse(&'a str),
+	Through(&'a (String, Option<String>)),
+}
+
+struct Steering {
+	ipv4: bool,
+	ipv6: Ipv6Route,
+}
+
+async fn steer_ipv6(plan: Ipv6Plan<'_>, steering: &mut Steering) {
+	let wanted = match &plan {
+		Ipv6Plan::Native => Ipv6Route::Native,
+		Ipv6Plan::Refuse(device) => Ipv6Route::Refused((*device).to_owned()),
+		Ipv6Plan::Through((device, _)) => Ipv6Route::Through(device.clone()),
+	};
+	if let Ipv6Plan::Through((device, gateway)) = plan {
+		let route = Route {
+			device,
+			gateway: gateway.as_deref(),
+		};
+		if let Err(err) = routing::steer(Family::V6, &route).await {
+			eprintln!("cowrtd: could not route IPv6 through {device}: {err}");
+			return;
 		}
-		return;
-	};
-	let route = Route {
-		device,
-		gateway: gateway.as_deref(),
-	};
-	if let Err(err) = routing::steer(Family::V6, &route).await {
-		eprintln!("cowrtd: could not route IPv6 through {device}: {err}");
+	} else if matches!(steering.ipv6, Ipv6Route::Through(_)) {
+		routing::release(Family::V6).await;
+	}
+	if steering.ipv6 == wanted {
 		return;
 	}
-	if steering.ipv6.as_deref() != Some(device.as_str()) {
-		match routing::masquerade_ipv6(Some(device)).await {
-			Ok(()) => steering.ipv6 = Some(device.clone()),
-			Err(err) => eprintln!("cowrtd: could not share IPv6 through {device}: {err}"),
-		}
+	let rules = match &wanted {
+		Ipv6Route::Native => Ipv6Rules::None,
+		Ipv6Route::Refused(device) => Ipv6Rules::Refuse(device),
+		Ipv6Route::Through(device) => Ipv6Rules::Masquerade(device),
+	};
+	match routing::ipv6_rules(rules).await {
+		Ok(()) => steering.ipv6 = wanted,
+		Err(err) => eprintln!("cowrtd: could not update IPv6 rules: {err}"),
 	}
 }
 
@@ -246,7 +267,13 @@ async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steerin
 			}
 		}
 		let backup = active.as_deref().filter(|id| *id != PRIMARY);
-		steer_ipv6(backup.and_then(|id| routes6.get(id)), steering).await;
+		let main6 = routes6.get(PRIMARY).map(|(device, _)| device.as_str());
+		let plan = match (backup.and_then(|id| routes6.get(id)), backup, main6) {
+			(Some(route), _, _) => Ipv6Plan::Through(route),
+			(None, Some(_), Some(main)) => Ipv6Plan::Refuse(main),
+			_ => Ipv6Plan::Native,
+		};
+		steer_ipv6(plan, steering).await;
 		if previous.is_some() && previous != active {
 			eprintln!("cowrtd: switched internet to {}", active.as_deref().unwrap_or("nothing"));
 			forget_lan_flows(&state.ubus).await;
@@ -254,7 +281,7 @@ async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steerin
 	} else if steering.ipv4 {
 		routing::release(Family::V4).await;
 		steering.ipv4 = false;
-		steer_ipv6(None, steering).await;
+		steer_ipv6(Ipv6Plan::Native, steering).await;
 	}
 
 	*state.uplinks.status.lock().expect("uplinks lock poisoned") = Status {
@@ -275,9 +302,12 @@ pub fn spawn(state: AppState) {
 			eprintln!("cowrtd: could not set up IPv6 for the phone: {err}");
 		}
 		routing::release(Family::V6).await;
-		let _ = routing::masquerade_ipv6(None).await;
+		let _ = routing::ipv6_rules(Ipv6Rules::None).await;
 		let mut trackers = HashMap::new();
-		let mut steering = Steering { ipv4: true, ipv6: None };
+		let mut steering = Steering {
+			ipv4: true,
+			ipv6: Ipv6Route::Native,
+		};
 		loop {
 			tick(&state, &mut trackers, &mut steering).await;
 			tokio::select! {
