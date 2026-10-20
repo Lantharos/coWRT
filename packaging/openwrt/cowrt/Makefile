@@ -44,7 +44,7 @@ endef
 
 define Package/cowrt/postinst
 #!/bin/sh
-[ -z "$${IPKG_INSTROOT}" ] && [ "$${PKG_UPGRADE}" = "1" ] && /etc/init.d/cowrtd restart
+[ -z "$${IPKG_INSTROOT}" ] && /etc/init.d/cowrtd restart
 exit 0
 endef
 
