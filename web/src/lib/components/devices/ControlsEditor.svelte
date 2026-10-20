@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import type { Controls, Priority, Schedule } from '#lib/api/types.js';
+	import type { Controls, Person, Priority, Schedule } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
 	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
@@ -13,9 +13,32 @@
 		id: string;
 		controls: Controls;
 		person?: string;
+		owner?: Person;
 		onsave: (change: Partial<Controls>) => Promise<unknown>;
 	};
-	let { id, controls, person, onsave }: Props = $props();
+	let { id, controls, person, owner, onsave }: Props = $props();
+
+	const priorityLabel: Record<Priority, string> = { low: 'Low', normal: 'Normal', high: 'High' };
+	const internetHint = $derived.by(() => {
+		if (controls.blocked)
+			return person ? 'Paused on all their devices' : 'Paused, home still works';
+		if (owner?.blocked) return `Paused along with ${owner.name}`;
+		return undefined;
+	});
+	const priorityHint = $derived.by(() => {
+		if (person) return 'For their devices when the connection is busy';
+		if (owner && priority === 'normal' && owner.priority !== 'normal') {
+			return `${priorityLabel[owner.priority]} like the rest of ${owner.name}'s devices`;
+		}
+		return 'When the connection is busy';
+	});
+	const limitHint = $derived.by(() => {
+		if (limited) return person ? 'In Mbps, shared by all their devices' : 'In Mbps';
+		if (owner && (owner.limitDown !== null || owner.limitUp !== null)) {
+			return `Shares ${owner.name}'s limit`;
+		}
+		return undefined;
+	});
 
 	let busy = $state<string | null>(null);
 	let limited = $state(false);
@@ -84,14 +107,7 @@
 </script>
 
 <div class="flex flex-col">
-	<Setting
-		title="Internet"
-		hint={controls.blocked
-			? person
-				? 'Paused on all their devices'
-				: 'Paused, home still works'
-			: undefined}
-	>
+	<Setting title="Internet" hint={internetHint}>
 		<Toggle
 			checked={!controls.blocked}
 			label="Internet access"
@@ -100,27 +116,20 @@
 		/>
 	</Setting>
 
-	<Setting
-		title="Priority"
-		hint={person ? 'For their devices when the connection is busy' : 'When the connection is busy'}
-	>
+	<Setting title="Priority" hint={priorityHint}>
 		<div class="w-56">
 			<Segmented
 				value={priority}
-				options={[
-					{ value: 'low', label: 'Low' },
-					{ value: 'normal', label: 'Normal' },
-					{ value: 'high', label: 'High' }
-				]}
+				options={(['low', 'normal', 'high'] as const).map((value) => ({
+					value,
+					label: priorityLabel[value]
+				}))}
 				onchange={setPriority}
 			/>
 		</div>
 	</Setting>
 
-	<Setting
-		title="Speed limit"
-		hint={limited ? (person ? 'In Mbps, shared by all their devices' : 'In Mbps') : undefined}
-	>
+	<Setting title="Speed limit" hint={limitHint}>
 		<Toggle bind:checked={limited} label="Speed limit" />
 	</Setting>
 	{#if limited}

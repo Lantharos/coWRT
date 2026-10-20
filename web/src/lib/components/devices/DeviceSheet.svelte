@@ -190,6 +190,7 @@
 			<ControlsEditor
 				id={device.mac}
 				controls={device.controls}
+				owner={people.find((p) => p.id === device.owner)}
 				onsave={(change) => api.patch(`/devices/${device.mac}`, change).then(onchange)}
 			/>
 
