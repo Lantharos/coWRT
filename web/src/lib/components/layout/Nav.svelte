@@ -1,39 +1,19 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import {
-		Cpu,
-		Gauge,
-		Globe,
-		LogOut,
-		MonitorSmartphone,
-		Network,
-		Search,
-		Shield,
-		Wifi
-	} from '@lucide/svelte';
+	import { LogOut, Search } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import QuickSearch from '#lib/components/search/QuickSearch.svelte';
 	import Logo from './Logo.svelte';
+	import { isTab, tabs } from './tabs';
 
 	let searching = $state(false);
-
-	const tabs = [
-		{ href: '/', label: 'Overview', icon: Gauge },
-		{ href: '/devices', label: 'Devices', icon: MonitorSmartphone },
-		{ href: '/wifi', label: 'Wi-Fi', icon: Wifi },
-		{ href: '/networks', label: 'Networks', icon: Network },
-		{ href: '/access', label: 'Access', icon: Globe },
-		{ href: '/security', label: 'Security', icon: Shield },
-		{ href: '/system', label: 'System', icon: Cpu }
-	];
 
 	const updates = $derived(live.snapshot?.updates);
 	const hasUpdate = (href: string) => href === '/system' && !!(updates?.cowrt || updates?.openwrt);
 
-	const active = (href: string) =>
-		href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href);
+	const active = (href: string) => isTab(href, page.url.pathname);
 
 	async function signOut() {
 		live.stop();
@@ -48,6 +28,7 @@
 		<span class="font-display text-xl font-medium tracking-tight">coWRT</span>
 	</a>
 	<nav
+		data-sveltekit-preload-code="eager"
 		class="fixed inset-x-0 bottom-0 z-30 flex justify-around bg-bg/90 px-1 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-lg md:static md:z-auto md:flex-1 md:justify-start md:gap-1 md:bg-transparent md:p-0 md:backdrop-blur-none"
 	>
 		{#each tabs as tab (tab.href)}
