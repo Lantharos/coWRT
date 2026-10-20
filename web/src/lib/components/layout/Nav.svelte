@@ -29,6 +29,9 @@
 		{ href: '/system', label: 'System', icon: Cpu }
 	];
 
+	const updates = $derived(live.snapshot?.updates);
+	const hasUpdate = (href: string) => href === '/system' && !!(updates?.cowrt || updates?.openwrt);
+
 	const active = (href: string) =>
 		href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href);
 
@@ -57,8 +60,21 @@
 					? 'text-fg md:bg-raised'
 					: 'text-faint hover:text-fg md:text-muted'}"
 			>
-				<tab.icon size={20} class="md:hidden" />
-				{tab.label}
+				<span class="relative md:hidden">
+					<tab.icon size={20} />
+					{#if hasUpdate(tab.href)}
+						<span class="absolute -top-0.5 -right-1 size-2 rounded-full bg-accent"></span>
+					{/if}
+				</span>
+				<span class="flex items-center gap-1.5">
+					{tab.label}
+					{#if hasUpdate(tab.href)}
+						<span
+							class="hidden size-1.5 rounded-full bg-accent md:block"
+							aria-label="Update available"
+						></span>
+					{/if}
+				</span>
 			</a>
 		{/each}
 	</nav>

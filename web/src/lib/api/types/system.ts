@@ -22,6 +22,12 @@ export interface Snapshot {
 	internet: { checked: boolean; online: boolean; latencyMs: number | null; online6: boolean };
 	usageToday: number;
 	uplink: Uplink | null;
+	updates: AvailableUpdates;
+}
+
+export interface AvailableUpdates {
+	cowrt: string | null;
+	openwrt: string | null;
 }
 
 export interface HistoryPoint {
@@ -60,6 +66,7 @@ export interface UpdateInfo {
 	latest: string;
 	notes: string | null;
 	available: boolean;
+	automatic: boolean;
 }
 
 export type UpgradeProgress =

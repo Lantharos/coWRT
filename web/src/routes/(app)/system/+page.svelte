@@ -41,6 +41,13 @@
 
 	const close = () => (panel = null);
 	const snapshot = $derived(live.snapshot);
+	const updateHint = $derived.by(() => {
+		const out = [
+			snapshot?.updates.cowrt && `coWRT ${snapshot.updates.cowrt}`,
+			snapshot?.updates.openwrt && `OpenWrt ${snapshot.updates.openwrt}`
+		].filter(Boolean);
+		return out.length ? `${out.join(' and ')} ready to install` : null;
+	});
 	const recent = $derived(live.samples.slice(-60));
 	const memory = $derived(snapshot?.memory);
 	const storage = $derived(system.data?.storage);
@@ -101,7 +108,9 @@
 		<Row
 			title="Updates"
 			icon={ArrowUpCircle}
-			value={system.data ? `coWRT ${system.data.cowrt}` : null}
+			detail={updateHint}
+			value={updateHint ? 'Available' : system.data ? `coWRT ${system.data.cowrt}` : null}
+			tone={updateHint ? 'good' : 'muted'}
 			onclick={() => (panel = 'updates')}
 		/>
 		<Row title="Backups" icon={Archive} onclick={() => (panel = 'backups')} />

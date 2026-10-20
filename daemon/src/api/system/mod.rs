@@ -9,7 +9,7 @@ pub use backup::{backup, firmware, restore};
 pub use logs::logs;
 pub use openwrt::{check_openwrt, upgrade_openwrt};
 pub use settings::{password, reboot, update_settings};
-pub use update::{check_update, install_update};
+pub use update::{check_update, install_update, update_automatic};
 
 use axum::Json;
 use axum::extract::State;

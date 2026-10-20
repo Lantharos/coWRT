@@ -1,29 +1,10 @@
-use std::time::Duration;
-
 use axum::Json;
+use axum::extract::State;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use tokio::process::Command;
 
 use crate::http::{ApiError, ApiResult};
-use crate::system::outbound::Request;
-
-const RELEASES: &str = "https://api.github.com/repos/Lantharos/coWRT/releases/latest";
-const PACKAGE: &str = "/tmp/cowrt-update.apk";
-const LIMIT: u64 = 64 * 1024 * 1024;
-
-#[derive(Deserialize)]
-struct Asset {
-	name: String,
-	browser_download_url: String,
-}
-
-#[derive(Deserialize)]
-struct Release {
-	tag_name: String,
-	body: Option<String>,
-	assets: Vec<Asset>,
-}
+use crate::state::AppState;
+use crate::system::{release, updates};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,76 +13,37 @@ pub struct UpdateInfo {
 	latest: String,
 	notes: Option<String>,
 	available: bool,
+	automatic: bool,
 }
 
-fn version(tag: &str) -> Vec<u32> {
-	tag.trim_start_matches('v')
-		.split('.')
-		.map(|part| part.parse().unwrap_or(0))
-		.collect()
-}
-
-async fn latest() -> Result<Release, ApiError> {
-	Request::get(RELEASES)
-		.header("Accept", "application/vnd.github+json")
-		.json(None::<()>)
-		.await
-		.map_err(|err| ApiError::conflict(format!("Couldn't reach GitHub: {err}")))
-}
-
-async fn architecture() -> Result<String, ApiError> {
-	Ok(tokio::fs::read_to_string("/etc/apk/arch").await?.trim().to_owned())
-}
-
-pub async fn check_update() -> ApiResult<UpdateInfo> {
-	let release = latest().await?;
-	let current = env!("CARGO_PKG_VERSION");
+pub async fn check_update(State(state): State<AppState>) -> ApiResult<UpdateInfo> {
+	let release = release::latest().await?;
 	Ok(Json(UpdateInfo {
-		available: version(&release.tag_name) > version(current),
-		current,
-		latest: release.tag_name.trim_start_matches('v').to_owned(),
+		available: release.is_newer(),
+		current: release::CURRENT,
+		latest: release.version().to_owned(),
 		notes: release.body,
+		automatic: updates::automatic(&state.ubus).await?,
 	}))
 }
 
-fn asset<'a>(release: &'a Release, name: &str) -> Result<&'a Asset, ApiError> {
-	release
-		.assets
-		.iter()
-		.find(|a| a.name == name)
-		.ok_or_else(|| ApiError::conflict(format!("This release has no {name}")))
+pub async fn install_update(State(state): State<AppState>) -> Result<(), ApiError> {
+	release::install(&release::latest().await?).await?;
+	state.updates.forget_cowrt();
+	Ok(())
 }
 
-pub async fn install_update() -> Result<(), ApiError> {
-	let release = latest().await?;
-	let latest = release.tag_name.trim_start_matches('v');
-	if version(latest) <= version(env!("CARGO_PKG_VERSION")) {
-		return Err(ApiError::conflict("You already have the newest version"));
-	}
-	let name = format!("cowrt-{latest}-{}.apk", architecture().await?);
-	let package = asset(&release, &name)?;
-	let sums = asset(&release, "SHA256SUMS")?;
-	let download = |url: &str| Request::get(url).bytes(LIMIT);
-	let (archive, sums) = tokio::try_join!(download(&package.browser_download_url), download(&sums.browser_download_url))
-		.map_err(|err| ApiError::conflict(format!("The download failed: {err}")))?;
-	let expected = String::from_utf8_lossy(&sums)
-		.lines()
-		.find_map(|line| {
-			line.split_once("  ")
-				.filter(|(_, file)| *file == name)
-				.map(|(hash, _)| hash.to_owned())
+#[derive(Deserialize)]
+pub struct AutomaticInput {
+	enabled: bool,
+}
+
+pub async fn update_automatic(State(state): State<AppState>, Json(input): Json<AutomaticInput>) -> Result<(), ApiError> {
+	state
+		.applier
+		.apply(&state.ubus, &["cowrt"], None, async |ubus| {
+			Ok(updates::set_automatic(ubus, input.enabled).await?)
 		})
-		.ok_or_else(|| ApiError::conflict("The release has no checksum for this router"))?;
-	let actual: String = Sha256::digest(&archive).iter().map(|b| format!("{b:02x}")).collect();
-	if actual != expected {
-		return Err(ApiError::conflict(
-			"The download didn't match its checksum, so it wasn't installed",
-		));
-	}
-	tokio::fs::write(PACKAGE, archive).await?;
-	tokio::spawn(async {
-		tokio::time::sleep(Duration::from_secs(1)).await;
-		let _ = Command::new("apk").args(["add", "--allow-untrusted", PACKAGE]).status().await;
-	});
+		.await?;
 	Ok(())
 }
