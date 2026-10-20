@@ -1,10 +1,11 @@
+mod guard;
 mod lists;
 pub mod private_dns;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -22,6 +23,7 @@ use crate::state::{AppState, RUNTIME_DIR, unix_now};
 const SECTION: &str = "protection";
 const REFRESH: Duration = Duration::from_secs(24 * 3600);
 const RETRY: Duration = Duration::from_secs(600);
+const SUPERVISE: Duration = Duration::from_secs(5);
 const ACTIVITY_SECTION: &str = "activity";
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -75,6 +77,7 @@ pub struct View {
 	pub settings: Settings,
 	pub updated: Option<u64>,
 	pub private_dns: private_dns::Settings,
+	pub dns_fallback: bool,
 }
 
 pub async fn load(ubus: &Ubus) -> Result<Settings, ubus::Error> {
@@ -96,6 +99,7 @@ pub async fn view(ubus: &Ubus) -> Result<View, ubus::Error> {
 		settings,
 		updated,
 		private_dns,
+		dns_fallback: guard::fallen_back(),
 	})
 }
 
@@ -244,7 +248,32 @@ async fn reap_strays() {
 	tokio::time::sleep(Duration::from_millis(300)).await;
 }
 
+async fn revive(ubus: &Ubus) {
+	let mut resolvers = RESOLVERS.lock().await;
+	let exited: Vec<Profile> = resolvers
+		.iter_mut()
+		.filter_map(|(profile, child)| child.try_wait().ok().flatten().map(|_| *profile))
+		.collect();
+	if exited.is_empty() {
+		return;
+	}
+	let logging = activity_enabled(ubus).await.unwrap_or(true);
+	for profile in exited {
+		eprintln!(
+			"cowrtd: the DNS resolver on port {} stopped, starting it again",
+			profile.port()
+		);
+		match start(profile, logging).await {
+			Ok(child) => {
+				resolvers.insert(profile, child);
+			}
+			Err(err) => eprintln!("cowrtd: could not restart the DNS resolver on port {}: {err}", profile.port()),
+		}
+	}
+}
+
 pub fn spawn(state: AppState) {
+	guard::spawn(state.clone());
 	tokio::spawn(async move {
 		reap_strays().await;
 		if let Err(err) = apply(&state.ubus).await {
@@ -252,7 +281,11 @@ pub fn spawn(state: AppState) {
 		}
 		loop {
 			let complete = List::ALL.iter().all(|list| lists::downloaded(*list));
-			tokio::time::sleep(if complete { REFRESH } else { RETRY }).await;
+			let refresh_at = Instant::now() + if complete { REFRESH } else { RETRY };
+			while Instant::now() < refresh_at {
+				tokio::time::sleep(SUPERVISE).await;
+				revive(&state.ubus).await;
+			}
 			let mut refreshed = false;
 			for list in List::ALL {
 				refreshed |= lists::download(list).await.is_ok();

@@ -9,6 +9,7 @@ export interface Protection {
 	allow: string[];
 	updated: number | null;
 	privateDns: { provider: DnsProvider; nextdns: string | null };
+	dnsFallback: boolean;
 }
 
 export interface ProtectionActivity {

@@ -9,8 +9,8 @@ use crate::system::packages;
 
 const SECTION: &str = "private_dns";
 const PACKAGE: &str = "https-dns-proxy";
-const SERVICE: &str = "/etc/init.d/https-dns-proxy";
-const PORT: &str = "5053";
+pub const SERVICE: &str = "/etc/init.d/https-dns-proxy";
+pub const PORT: &str = "5053";
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -33,7 +33,7 @@ pub struct Settings {
 }
 
 impl Settings {
-	fn resolver(&self) -> Option<(String, &'static str)> {
+	pub fn resolver(&self) -> Option<(String, &'static str)> {
 		let url = match self.provider {
 			Provider::Off => return None,
 			Provider::Cloudflare => ("https://cloudflare-dns.com/dns-query".into(), "1.1.1.1,1.0.0.1"),
@@ -73,6 +73,7 @@ pub async fn store(ubus: &Ubus, settings: &Settings) -> Result<(), ApiError> {
 	{
 		return Err(ApiError::bad_request("Paste your NextDNS configuration ID"));
 	}
+	super::guard::stand_down(ubus, &load(ubus).await?).await?;
 	let mut values = json!({ "provider": serde_json::to_value(settings.provider).unwrap_or_default() });
 	if let Some(id) = &settings.nextdns {
 		values["nextdns"] = json!(id);

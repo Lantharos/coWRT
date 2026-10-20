@@ -141,9 +141,15 @@
 		/>
 		<Row
 			title="Encrypted DNS"
-			detail="Keep lookups private from your provider"
+			detail={protection.data?.dnsFallback
+				? "Not answering, so regular DNS is used until it's back"
+				: 'Keep lookups private from your provider'}
 			icon={Lock}
-			tint={dns && dns.provider !== 'off' ? 'var(--color-accent)' : undefined}
+			tint={protection.data?.dnsFallback
+				? 'var(--color-warn)'
+				: dns && dns.provider !== 'off'
+					? 'var(--color-accent)'
+					: undefined}
 			value={providers.find((p) => p.value === dns?.provider)?.label ?? 'Off'}
 			onclick={() => (panel = 'dns')}
 		/>

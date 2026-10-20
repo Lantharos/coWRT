@@ -5,6 +5,8 @@ const CALM_BEFORE_INCREASE: Duration = Duration::from_secs(2);
 const BUSY: f64 = 0.75;
 const IDLE_SHARE: f64 = 0.02;
 const SMOOTHING: f64 = 0.35;
+const BASE_RECOVERY: f64 = 0.002;
+const START_SHARE: f64 = 0.6;
 const CUT: f64 = 0.9;
 const DEEPEST_CUT: f64 = 0.5;
 const GROW: f64 = 1.03;
@@ -15,6 +17,7 @@ const FLOOR_SHARE: f64 = 0.02;
 struct Direction {
 	max: f64,
 	min: f64,
+	start: f64,
 	base: f64,
 	rate: f64,
 	achieved: f64,
@@ -23,11 +26,13 @@ struct Direction {
 impl Direction {
 	fn new(max_kbit: u32) -> Self {
 		let max = f64::from(max_kbit);
+		let start = max * START_SHARE;
 		Self {
 			max,
 			min: max * FLOOR_SHARE,
-			base: max * 0.6,
-			rate: max * 0.6,
+			start,
+			base: start,
+			rate: start,
 			achieved: 0.0,
 		}
 	}
@@ -53,6 +58,7 @@ impl Direction {
 			self.rate = (self.rate * GROW).min(self.max);
 			self.base = self.base.max(self.rate * 0.9).min(self.max);
 		} else if self.utilization() < IDLE_SHARE {
+			self.base += (self.start - self.base) * BASE_RECOVERY;
 			self.rate += (self.base - self.rate) * DRIFT;
 		}
 	}
@@ -89,6 +95,9 @@ impl Autorate {
 				let down = self.down.utilization();
 				let up = self.up.utilization();
 				let busiest = down.max(up);
+				if busiest < IDLE_SHARE {
+					return self.limits();
+				}
 				if down >= busiest * SHARE_OF_BUSIEST {
 					self.down.cut();
 				}

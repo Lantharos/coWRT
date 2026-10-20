@@ -131,6 +131,10 @@ The router keeps pinging four public resolvers (Cloudflare, Google, Quad9 and Op
 
 The smart queue has three ways to pick its speeds. Fixed uses what you enter. Speed test uses the last speed test. Follow the line treats what you enter as your plan's speeds and keeps adjusting below them, in the spirit of cake-autorate. When most recent pings come back delayed, it lowers the busy direction to 90% of what's actually getting through, at most halving it at a time. When the line is busy and replies are back to normal for two seconds, it raises the speed again by 3% every quarter second, up to your plan. When the line goes idle, it drifts back toward the speed that has held up recently. That keeps delay low on lines whose real speed swings with the time of day, like cable in the evening.
 
+## Staying online when DNS breaks
+
+Encrypted DNS runs through https-dns-proxy, which can crash after a short outage and stay down once procd gives up restarting it, leaving every lookup unanswered. coWRT asks it to resolve a name every ten seconds. If it doesn't answer twice in a row, coWRT restarts it; if it still doesn't answer, lookups go to your provider's regular DNS until the encrypted one answers again, and Security → Encrypted DNS says so in the meantime. The resolvers coWRT runs for ad and threat blocking are restarted within five seconds if they ever exit.
+
 ## Updates
 
 coWRT checks for new coWRT and OpenWrt releases a couple of minutes after it starts and every six hours after that, and puts a dot on System when one is ready. With overnight updates on, coWRT installs its own updates between 3 and 5 in the morning. OpenWrt updates always wait for you, since the router is offline while they install.
