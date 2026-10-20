@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { Gauge, Shuffle, Smartphone } from '@lucide/svelte';
+	import { Activity, Gauge, Shuffle, Smartphone } from '@lucide/svelte';
 	import { api } from '#lib/api/client.js';
 	import { live } from '#lib/api/live.svelte.js';
 	import { poll } from '#lib/api/poll.svelte.js';
 	import { speedtests } from '#lib/api/speedtest.svelte.js';
-	import type { InternetOverview, Uplink, UplinkStatus } from '#lib/api/types.js';
+	import type { InternetOverview, LineView, Uplink, UplinkStatus } from '#lib/api/types.js';
 	import { ago } from '#lib/format.js';
 	import List from '#lib/components/ui/List.svelte';
 	import Row from '#lib/components/ui/Row.svelte';
@@ -12,6 +12,8 @@
 	import { mbps } from './grade';
 	import InternetSheet from './InternetSheet.svelte';
 	import PhoneSheet from './PhoneSheet.svelte';
+	import QualitySheet from './quality/QualitySheet.svelte';
+	import { recentLoss } from './quality/summary';
 	import SpeedSheet from './SpeedSheet.svelte';
 	import { uplinkIcon, uplinkState } from './uplinks';
 
@@ -19,9 +21,10 @@
 
 	const settings = poll(() => api.get<InternetOverview>('/internet'), 60000);
 	const status = poll(() => api.get<UplinkStatus>('/internet/uplinks'), 5000);
+	const line = poll(() => api.get<LineView>('/internet/line'), 30000);
 	speedtests.use();
 
-	let panel = $state<'main' | 'failover' | 'phone' | null>(null);
+	let panel = $state<'main' | 'failover' | 'phone' | 'quality' | null>(null);
 
 	const uplinks = $derived(status.data?.uplinks ?? []);
 	const phone = $derived(uplinks.find((u) => u.kind === 'phone') ?? null);
@@ -54,6 +57,17 @@
 		return {
 			detail: `Tested ${ago(latest.time)}`,
 			value: `${mbps(latest.download)} / ${mbps(latest.upload)} Mbps`
+		};
+	});
+
+	const quality = $derived.by(() => {
+		const data = line.data;
+		if (!data?.now.latencyMs) return { detail: 'Measuring…', value: null };
+		const loss = recentLoss(data.points, 3600);
+		return {
+			detail:
+				loss >= 0.1 ? `${loss.toFixed(1)}% lost in the last hour` : 'Nothing lost in the last hour',
+			value: `${Math.round(data.now.latencyMs)} ms`
 		};
 	});
 
@@ -103,6 +117,16 @@
 		/>
 	{/if}
 	<Row
+		title="Line quality"
+		icon={Activity}
+		tint={line.data?.now.bloated ? 'var(--color-warn)' : 'var(--color-accent)'}
+		detail={quality.detail}
+		graph={line.data?.points.slice(-24).map((point) => point.latency)}
+		graphMax={40}
+		value={quality.value}
+		onclick={() => (panel = 'quality')}
+	/>
+	<Row
 		title="Speed"
 		icon={Gauge}
 		tint={speedtests.latest ? 'var(--color-accent)' : undefined}
@@ -127,4 +151,5 @@
 	onclose={() => (panel = null)}
 	onsaved={refresh}
 />
+<QualitySheet line={line.data} open={panel === 'quality'} onclose={() => (panel = null)} />
 <PhoneSheet {phone} open={panel === 'phone'} onclose={() => (panel = null)} onsaved={refresh} />

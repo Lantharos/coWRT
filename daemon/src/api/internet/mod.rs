@@ -57,7 +57,8 @@ pub async fn update_ipv6(State(state): State<AppState>, Json(input): Json<Ipv6Se
 }
 
 pub async fn update_qos(State(state): State<AppState>, Json(input): Json<Settings>) -> ApiResult<Applied> {
-	if input.enabled && !input.auto && (input.download < 1000 || input.upload < 1000) {
+	let measured = input.mode == qos::Mode::Speedtest;
+	if input.enabled && !measured && (input.download < 1000 || input.upload < 1000) {
 		return Err(ApiError::bad_request("Enter your line speeds, at least 1 Mbps each way"));
 	}
 	let bypassed = input.enabled && internet::acceleration(&state.ubus).await? == Acceleration::Hardware;
@@ -75,10 +76,14 @@ pub async fn update_qos(State(state): State<AppState>, Json(input): Json<Setting
 	qos::apply(&state.ubus, wan.device.as_deref())
 		.await
 		.map_err(|err| ApiError::conflict(format!("The smart queue couldn't start: {err}")))?;
-	if input.enabled && input.auto {
+	if input.enabled && measured {
 		state.speedtest.start(state.clone());
 	}
 	Ok(Json(applied))
+}
+
+pub async fn line(State(state): State<AppState>) -> Json<crate::internet::line::View> {
+	Json(state.line.view().await)
 }
 
 pub async fn speedtest(State(state): State<AppState>) -> Json<speedtest::Overview> {

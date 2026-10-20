@@ -4,6 +4,8 @@ use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::time::{Duration, Instant};
 
+use crate::platform::socket::option;
+
 const GROUP: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(224, 0, 0, 251), 5353);
 const LISTEN: Duration = Duration::from_millis(1500);
 const PTR: u16 = 12;
@@ -85,14 +87,6 @@ fn answers(packet: &[u8]) -> Vec<(String, String)> {
 		offset = data + length as usize;
 	}
 	found
-}
-
-fn option<T>(fd: i32, level: i32, name: i32, value: &T) -> io::Result<()> {
-	let result = unsafe { libc::setsockopt(fd, level, name, (value as *const T).cast(), size_of::<T>() as libc::socklen_t) };
-	if result < 0 {
-		return Err(io::Error::last_os_error());
-	}
-	Ok(())
 }
 
 fn shared_socket(local: Ipv4Addr) -> io::Result<UdpSocket> {

@@ -123,7 +123,7 @@ async fn tune(state: &AppState, result: &Run) {
 	let Ok(mut settings) = qos::load(&state.ubus).await else {
 		return;
 	};
-	if !settings.enabled || !settings.auto {
+	if !settings.enabled || settings.mode != qos::Mode::Speedtest {
 		return;
 	}
 	settings.download = (result.download as f64 * SHAPED_SHARE / 1000.0) as u32;

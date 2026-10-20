@@ -61,6 +61,8 @@ async fn main() {
 	activity::spawn(state.clone());
 	devices::discovery::spawn(state.clone());
 	internet::uplinks::spawn(state.clone());
+	system::updates::spawn(state.clone());
+	internet::line::spawn(state.clone());
 
 	let listener = tokio::net::TcpListener::bind(args.listen)
 		.await
@@ -75,6 +77,7 @@ async fn main() {
 	.expect("server error");
 	state.monitor.save().await;
 	state.activity.save().await;
+	state.line.save().await;
 }
 
 async fn shutdown() {

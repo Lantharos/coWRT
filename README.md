@@ -7,10 +7,10 @@ A modern interface for OpenWrt routers. coWRT replaces LuCI with a fast, friendl
 - **Overview**: whether you're online, how many devices are connected, today's usage and live speed.
 - **Devices**: every device with its network, signal history, live speed, 30 days of usage and the sites it looked up today. Rename it, reserve its address, wake it up, pause its internet, set quiet times, cap its speed or give it priority. Group devices under people to pause them together, give them a bedtime, share one speed limit across their devices or set their priority.
 - **Wi-Fi**: networks spanning every band, which network their devices join, QR codes for joining, guest networks that turn themselves off, fast roaming and band steering, and per-radio channel, width and power with a scan for the quietest channel.
-- **Networks**: groups of devices with their own IPv4 range and IPv6 prefix, ports, Wi-Fi and rules. Plus the internet connection (automatic, fixed or PPPoE, with an optional VLAN tag) with a backup like a tethered phone, IPv6 with prefix delegation, a speed test that also measures lag under load, a smart queue against bufferbloat that can set itself from the speed test, acceleration, local names like `nas.lan` and static routes.
+- **Networks**: groups of devices with their own IPv4 range and IPv6 prefix, ports, Wi-Fi and rules. Plus the internet connection (automatic, fixed or PPPoE, with an optional VLAN tag) with a backup like a tethered phone, IPv6 with prefix delegation, a speed test that also measures lag under load, a smart queue against bufferbloat that can follow the line as it changes or set itself from the speed test, a history of the line's delay and loss, acceleration, local names like `nas.lan` and static routes.
 - **Access**: a reachability test, port forwards that also open over IPv6, automatic port forwarding (UPnP and NAT-PMP), dynamic DNS on Cloudflare, a WireGuard VPN with QR codes, and routing whole networks through a VPN provider with a kill switch.
 - **Security**: ad, tracker and threat blocking per network with a running count of what was blocked, an allow list, and encrypted DNS.
-- **System**: health charts, router name and time zone, password, backups, firmware, restarts, logs, and updates for both coWRT and OpenWrt.
+- **System**: health charts, router name and time zone, password, backups, firmware, restarts, logs, and updates for both coWRT and OpenWrt, with a dot on System when one is ready and optional overnight coWRT updates.
 
 Press ⌘K (or Ctrl+K, or /) anywhere to jump to a device, person, network or setting. On a fresh router, coWRT starts with a short setup: a password, the Wi-Fi name and the time zone. It can be added to a phone's home screen like an app.
 
@@ -58,7 +58,7 @@ Each network's DNS lookups go through a small resolver that coWRT runs next to t
 
 ## Speed test
 
-The speed test runs on the router itself against Cloudflare's speed test servers: idle latency first, then eight seconds of download and upload over six connections each, while it keeps measuring latency to see how much the line lags under load. The smart queue is paused during the test so it measures the real line. With "Set speeds from the speed test" on, the smart queue uses 90% of the measured speeds. The last 30 results are kept in `/etc/cowrt/speedtests.json`.
+The speed test runs on the router itself against Cloudflare's speed test servers: idle latency first, then eight seconds of download and upload over six connections each, while it keeps measuring latency to see how much the line lags under load. The smart queue is paused during the test so it measures the real line. When the smart queue is set to the speed test, it uses 90% of the measured speeds. The last 30 results are kept in `/etc/cowrt/speedtests.json`.
 
 ## Extras installed on demand
 
@@ -124,3 +124,14 @@ apk add --allow-untrusted /tmp/cowrt-0.1.0-aarch64_cortex-a53.apk
 ```
 
 coWRT takes over port 80 and moves the stock web server (and LuCI with it) to port 8080. Removing the package with `apk del cowrt` moves it back.
+
+## Line quality and the smart queue
+
+The router keeps pinging four public resolvers (Cloudflare, Google, Quad9 and OpenDNS) over the main line: once a second normally, ten times a second while the smart queue follows the line. For each one it learns the delay when the line is quiet and watches how far above that the replies come back. Every five minutes it records the average and 95th-percentile delay, the share of lost pings and the speed in use, and keeps seven days of that in `/etc/cowrt/line.json`. Internet → Line quality shows it, along with the time of day your line is worst, once there's a day of data.
+
+The smart queue has three ways to pick its speeds. Fixed uses what you enter. Speed test uses the last speed test. Follow the line treats what you enter as your plan's speeds and keeps adjusting below them, in the spirit of cake-autorate. When most recent pings come back delayed, it lowers the busy direction to 90% of what's actually getting through, at most halving it at a time. When the line is busy and replies are back to normal for two seconds, it raises the speed again by 3% every quarter second, up to your plan. When the line goes idle, it drifts back toward the speed that has held up recently. That keeps delay low on lines whose real speed swings with the time of day, like cable in the evening.
+
+## Updates
+
+coWRT checks for new coWRT and OpenWrt releases a couple of minutes after it starts and every six hours after that, and puts a dot on System when one is ready. With overnight updates on, coWRT installs its own updates between 3 and 5 in the morning. OpenWrt updates always wait for you, since the router is offline while they install.
+

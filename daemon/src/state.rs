@@ -3,11 +3,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::activity::Activity;
 use crate::http::Sessions;
+use crate::internet::line::Line;
 use crate::internet::speedtest::SpeedTest;
 use crate::internet::uplinks::Uplinks;
 use crate::monitor::Monitor;
 use crate::platform::config::Applier;
 use crate::platform::ubus::Ubus;
+use crate::system::updates::Updates;
 use crate::system::upgrade::Upgrade;
 
 pub const RUNTIME_DIR: &str = "/tmp/cowrt";
@@ -26,6 +28,8 @@ pub struct AppState {
 	pub activity: Arc<Activity>,
 	pub uplinks: Arc<Uplinks>,
 	pub upgrade: Arc<Upgrade>,
+	pub updates: Arc<Updates>,
+	pub line: Arc<Line>,
 }
 
 impl AppState {
@@ -40,6 +44,8 @@ impl AppState {
 			activity: Arc::default(),
 			uplinks: Arc::default(),
 			upgrade: Arc::default(),
+			updates: Arc::default(),
+			line: Arc::default(),
 		}
 	}
 }

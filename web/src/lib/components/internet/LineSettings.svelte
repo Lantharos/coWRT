@@ -3,9 +3,10 @@
 	import { api } from '#lib/api/client.js';
 	import { applyChange } from '#lib/api/apply.js';
 	import { live } from '#lib/api/live.svelte.js';
-	import type { Acceleration, Applied, InternetOverview } from '#lib/api/types.js';
+	import type { Acceleration, Applied, InternetOverview, QueueMode } from '#lib/api/types.js';
 	import { toasts } from '#lib/toast.svelte.js';
 	import Button from '#lib/components/ui/controls/Button.svelte';
+	import Segmented from '#lib/components/ui/controls/Segmented.svelte';
 	import Select from '#lib/components/ui/controls/Select.svelte';
 	import TextField from '#lib/components/ui/controls/TextField.svelte';
 	import Toggle from '#lib/components/ui/controls/Toggle.svelte';
@@ -16,7 +17,7 @@
 
 	const initial = untrack(() => settings);
 	let queue = $state(initial.qos.enabled);
-	let auto = $state(initial.qos.auto);
+	let mode = $state<QueueMode>(initial.qos.mode);
 	let download = $state(initial.qos.download ? String(initial.qos.download / 1000) : '');
 	let upload = $state(initial.qos.upload ? String(initial.qos.upload / 1000) : '');
 	let ipv6 = $state(initial.ipv6.enabled);
@@ -24,11 +25,19 @@
 	let busy = $state<'ipv6' | 'queue' | null>(null);
 
 	const kbit = (mbps: string) => Math.round(Number(mbps || 0) * 1000);
+	const modeHint = $derived<Record<QueueMode, string>>({
+		adaptive: 'Keeps adjusting to what your line gives right now, up to your plan',
+		speedtest:
+			settings.qos.mode === 'speedtest' && settings.qos.download
+				? `Set by the last speed test to ${Math.round(settings.qos.download / 1000)} / ${Math.round(settings.qos.upload / 1000)} Mbps`
+				: 'Set by the speed test, then left alone',
+		fixed: 'A little under what your line reliably gives'
+	});
 	const queueChanged = $derived(
 		queue !== settings.qos.enabled ||
-			(queue && auto !== settings.qos.auto) ||
+			(queue && mode !== settings.qos.mode) ||
 			(queue &&
-				!auto &&
+				mode !== 'speedtest' &&
 				(kbit(download) !== settings.qos.download || kbit(upload) !== settings.qos.upload))
 	);
 
@@ -72,7 +81,7 @@
 		try {
 			await api.put('/internet/qos', {
 				enabled: queue,
-				auto,
+				mode,
 				download: kbit(download),
 				upload: kbit(upload)
 			});
@@ -81,7 +90,7 @@
 					? 'Smart queue is off'
 					: settings.acceleration === 'hardware'
 						? 'Smart queue is on, acceleration switched to software'
-						: auto
+						: mode === 'speedtest'
 							? 'Measuring your line first'
 							: 'Smart queue is on'
 			);
@@ -126,19 +135,29 @@
 		<Toggle bind:checked={queue} label="Smart queue" />
 	</Setting>
 	{#if queue}
-		<Setting
-			title="Set speeds from the speed test"
-			hint={auto && settings.qos.auto && settings.qos.download
-				? `${Math.round(settings.qos.download / 1000)} / ${Math.round(settings.qos.upload / 1000)} Mbps`
-				: undefined}
-		>
-			<Toggle bind:checked={auto} label="Set speeds from the speed test" />
+		<Setting title="Speeds" hint={modeHint[mode]} stacked>
+			<Segmented
+				bind:value={mode}
+				options={[
+					{ value: 'adaptive', label: 'Follow the line' },
+					{ value: 'speedtest', label: 'Speed test' },
+					{ value: 'fixed', label: 'Fixed' }
+				]}
+			/>
 		</Setting>
 	{/if}
-	{#if queue && !auto}
+	{#if queue && mode !== 'speedtest'}
 		<div class="grid grid-cols-2 gap-3 py-3">
-			<TextField bind:value={download} label="Download, Mbps" inputmode="decimal" />
-			<TextField bind:value={upload} label="Upload, Mbps" inputmode="decimal" />
+			<TextField
+				bind:value={download}
+				label={mode === 'adaptive' ? 'Plan download, Mbps' : 'Download, Mbps'}
+				inputmode="decimal"
+			/>
+			<TextField
+				bind:value={upload}
+				label={mode === 'adaptive' ? 'Plan upload, Mbps' : 'Upload, Mbps'}
+				inputmode="decimal"
+			/>
 		</div>
 	{/if}
 	{#if queueChanged}

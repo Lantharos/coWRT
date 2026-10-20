@@ -9,13 +9,46 @@ use crate::platform::ubus::{self, Ubus};
 const IFB: &str = "ifb-cowrt";
 const SECTION: &str = "qos";
 
+#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+	#[default]
+	Fixed,
+	Speedtest,
+	Adaptive,
+}
+
+impl Mode {
+	fn parse(value: Option<&str>) -> Self {
+		match value {
+			Some("speedtest") => Self::Speedtest,
+			Some("adaptive") => Self::Adaptive,
+			_ => Self::Fixed,
+		}
+	}
+
+	fn uci(self) -> &'static str {
+		match self {
+			Self::Fixed => "fixed",
+			Self::Speedtest => "speedtest",
+			Self::Adaptive => "adaptive",
+		}
+	}
+}
+
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
 	pub enabled: bool,
-	pub auto: bool,
+	pub mode: Mode,
 	pub download: u32,
 	pub upload: u32,
+}
+
+impl Settings {
+	pub fn shaping(&self) -> bool {
+		self.enabled && self.download > 0 && self.upload > 0
+	}
 }
 
 pub async fn load(ubus: &Ubus) -> Result<Settings, ubus::Error> {
@@ -24,7 +57,7 @@ pub async fn load(ubus: &Ubus) -> Result<Settings, ubus::Error> {
 		.first()
 		.map(|section| Settings {
 			enabled: section.flag("enabled"),
-			auto: section.flag("auto"),
+			mode: Mode::parse(section.get("mode")),
 			download: section.get("download").and_then(|v| v.parse().ok()).unwrap_or_default(),
 			upload: section.get("upload").and_then(|v| v.parse().ok()).unwrap_or_default(),
 		})
@@ -34,7 +67,7 @@ pub async fn load(ubus: &Ubus) -> Result<Settings, ubus::Error> {
 pub async fn store(ubus: &Ubus, settings: &Settings) -> Result<(), ubus::Error> {
 	let values = json!({
 		"enabled": if settings.enabled { "1" } else { "0" },
-		"auto": if settings.auto { "1" } else { "0" },
+		"mode": settings.mode.uci(),
 		"download": settings.download.to_string(),
 		"upload": settings.upload.to_string(),
 	});
@@ -64,7 +97,7 @@ pub async fn apply(ubus: &Ubus, wan: Option<&str>) -> std::io::Result<()> {
 	let Some(wan) = wan else { return Ok(()) };
 	let settings = load(ubus).await.map_err(std::io::Error::other)?;
 	clear(Some(wan)).await;
-	if !settings.enabled || settings.download == 0 || settings.upload == 0 {
+	if !settings.shaping() {
 		return Ok(());
 	}
 	let mark = format!("{MARK_MASK:#x}");
@@ -119,6 +152,37 @@ pub async fn apply(ubus: &Ubus, wan: Option<&str>) -> std::io::Result<()> {
 			"ingress",
 			"fwmark",
 			&mark,
+		],
+	)
+	.await
+}
+
+pub async fn set_bandwidth(wan: &str, download_kbit: u32, upload_kbit: u32) -> std::io::Result<()> {
+	run(
+		"tc",
+		&[
+			"qdisc",
+			"change",
+			"dev",
+			wan,
+			"root",
+			"cake",
+			"bandwidth",
+			&format!("{upload_kbit}kbit"),
+		],
+	)
+	.await?;
+	run(
+		"tc",
+		&[
+			"qdisc",
+			"change",
+			"dev",
+			IFB,
+			"root",
+			"cake",
+			"bandwidth",
+			&format!("{download_kbit}kbit"),
 		],
 	)
 	.await

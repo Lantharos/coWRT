@@ -1,3 +1,4 @@
+pub mod line;
 pub mod qos;
 pub mod speedtest;
 pub mod uplinks;

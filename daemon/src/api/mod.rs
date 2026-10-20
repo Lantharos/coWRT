@@ -26,6 +26,7 @@ pub fn routes() -> Router<AppState> {
 		.route("/system/logs", get(system::logs))
 		.route("/system/backup", get(system::backup))
 		.route("/system/update", get(system::check_update).post(system::install_update))
+		.route("/system/update/automatic", put(system::update_automatic))
 		.route("/system/openwrt", get(system::check_openwrt).post(system::upgrade_openwrt))
 		.route(
 			"/system/restore",
@@ -47,6 +48,7 @@ pub fn routes() -> Router<AppState> {
 		.route("/internet/uplinks/{id}", axum::routing::delete(internet::uplinks::remove))
 		.route("/internet/failover", put(internet::uplinks::update_failover))
 		.route("/internet/acceleration", put(internet::update_acceleration))
+		.route("/internet/line", get(internet::line))
 		.route(
 			"/internet/speedtest",
 			get(internet::speedtest).post(internet::start_speedtest),

@@ -14,9 +14,11 @@ export interface InternetConnection {
 	mac: string | null;
 }
 
+export type QueueMode = 'fixed' | 'speedtest' | 'adaptive';
+
 export interface SmartQueue {
 	enabled: boolean;
-	auto: boolean;
+	mode: QueueMode;
 	download: number;
 	upload: number;
 }
@@ -78,4 +80,26 @@ export interface UplinkStatus {
 	active: string | null;
 	uplinks: Uplink[];
 	phoneDrivers: boolean;
+}
+
+export interface LinePoint {
+	time: number;
+	latency: number;
+	p95: number;
+	loss: number;
+	down: number;
+	up: number;
+	limitDown: number | null;
+	limitUp: number | null;
+}
+
+export interface LineView {
+	now: {
+		latencyMs: number | null;
+		baselineMs: number | null;
+		bloated: boolean;
+		limits: { download: number; upload: number } | null;
+	};
+	bucketSecs: number;
+	points: LinePoint[];
 }

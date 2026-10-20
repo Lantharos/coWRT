@@ -40,6 +40,7 @@ pub struct Snapshot {
 	pub internet: connectivity::Internet,
 	pub usage_today: u64,
 	pub uplink: Option<crate::internet::uplinks::Uplink>,
+	pub updates: crate::system::updates::Available,
 }
 
 #[derive(Clone, Copy, Default, Serialize)]
@@ -283,6 +284,7 @@ pub fn spawn(state: AppState) {
 				internet: *internet.borrow(),
 				usage_today,
 				uplink: state.uplinks.active(),
+				updates: state.updates.available(),
 			};
 			state.monitor.history.lock().expect("history lock poisoned").record(&snapshot);
 			state.monitor.latest.send_replace(snapshot);
