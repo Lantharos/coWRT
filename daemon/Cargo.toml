@@ -5,15 +5,20 @@ edition = "2024"
 
 [dependencies]
 axum = { version = "0.8.9", features = ["ws"] }
+bytes = "1.12.1"
 futures-util = { version = "0.3.34", default-features = false }
 getrandom = "0.4.3"
+h2 = "0.4.20"
+http = "1.5.0"
 libc = "0.2.191"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"
 tokio = { version = "1.53.3", features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros", "fs", "process", "signal"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"] }
 tower-http = { version = "0.7.1", features = ["fs"] }
 ureq = { version = "3.4.2", features = ["json"] }
+webpki-roots = "1.0.11"
 
 [profile.release]
 opt-level = 3

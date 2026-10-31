@@ -1,4 +1,4 @@
-mod guard;
+pub mod encrypted;
 mod lists;
 pub mod private_dns;
 
@@ -99,7 +99,7 @@ pub async fn view(ubus: &Ubus) -> Result<View, ubus::Error> {
 		settings,
 		updated,
 		private_dns,
-		dns_fallback: guard::fallen_back(),
+		dns_fallback: encrypted::fallen_back(),
 	})
 }
 
@@ -273,7 +273,7 @@ async fn revive(ubus: &Ubus) {
 }
 
 pub fn spawn(state: AppState) {
-	guard::spawn(state.clone());
+	encrypted::spawn(state.ubus.clone());
 	tokio::spawn(async move {
 		reap_strays().await;
 		if let Err(err) = apply(&state.ubus).await {

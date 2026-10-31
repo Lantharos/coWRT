@@ -62,7 +62,7 @@ The speed test runs on the router itself against Cloudflare's speed test servers
 
 ## Extras installed on demand
 
-Some features pull in an OpenWrt package the first time you switch them on: UPnP (`miniupnpd-nftables`), the VPN (`kmod-wireguard`, `wireguard-tools`), encrypted DNS (`https-dns-proxy`) and band steering (`usteer`). The router needs to be online for that. Fast roaming uses 802.11r everywhere, and adds 802.11k and 802.11v when the full `wpad` package is installed instead of the basic one.
+Some features pull in an OpenWrt package the first time you switch them on: UPnP (`miniupnpd-nftables`), the VPN (`kmod-wireguard`, `wireguard-tools`) and band steering (`usteer`). The router needs to be online for that. Fast roaming uses 802.11r everywhere, and adds 802.11k and 802.11v when the full `wpad` package is installed instead of the basic one.
 
 ## Releases
 
@@ -127,13 +127,21 @@ coWRT takes over port 80 and moves the stock web server (and LuCI with it) to po
 
 ## Line quality and the smart queue
 
-The router keeps pinging four public resolvers (Cloudflare, Google, Quad9 and OpenDNS) over the main line: once a second normally, ten times a second while the smart queue follows the line. For each one it learns the delay when the line is quiet and watches how far above that the replies come back. Every five minutes it records the average and 95th-percentile delay, the share of lost pings and the speed in use, and keeps seven days of that in `/etc/cowrt/line.json`. Internet → Line quality shows it, along with the time of day your line is worst, once there's a day of data.
+The router keeps pinging four public resolvers (Cloudflare, Google, Quad9 and OpenDNS) over the main line: once a second normally, ten times a second while the smart queue follows the line. For each one it learns the delay when the line is quiet and watches how far above that the replies come back. Every five minutes it records the average and 95th-percentile delay, the share of lost pings and the speed in use, and keeps seven days of that in `/etc/cowrt/line.json`. When no ping comes back for three seconds it counts a dropout, and notes when the line answers again. Internet → Line quality shows all of it: the charts, the dropouts with their length, and the time of day your line is worst once there's a day of data.
 
-The smart queue has three ways to pick its speeds. Fixed uses what you enter. Speed test uses the last speed test. Follow the line treats what you enter as your plan's speeds and keeps adjusting below them, in the spirit of cake-autorate. When most recent pings come back delayed, it lowers the busy direction to 90% of what's actually getting through, at most halving it at a time. When the line is busy and replies are back to normal for two seconds, it raises the speed again by 3% every quarter second, up to your plan. When the line goes idle, it drifts back toward the speed that has held up recently. That keeps delay low on lines whose real speed swings with the time of day, like cable in the evening.
+The smart queue has three ways to pick its speeds. Fixed uses what you enter. Speed test uses the last speed test. Follow the line treats what you enter as your plan's speeds and keeps adjusting below them, in the spirit of cake-autorate. When most recent pings come back delayed, it lowers the busy direction to 90% of what's actually getting through, at most halving it at a time. When the line is busy and replies are back to normal for two seconds, it raises the speed again by 3% every quarter second, up to your plan. While the line is busy it also learns a typical speed, a slow average of the speeds that held up, and when the line goes idle it drifts back to that. The typical speed is saved with the line history, so a restart or an update doesn't make the next big download start too high. It never lowers speeds while the line itself is down. That keeps delay low on lines whose real speed swings with the time of day, like cable in the evening.
 
-## Staying online when DNS breaks
+## Encrypted DNS
 
-Encrypted DNS runs through https-dns-proxy, which can crash after a short outage and stay down once procd gives up restarting it, leaving every lookup unanswered. coWRT asks it to resolve a name every ten seconds. If it doesn't answer twice in a row, coWRT restarts it; if it still doesn't answer, lookups go to your provider's regular DNS until the encrypted one answers again, and Security → Encrypted DNS says so in the meantime. The resolvers coWRT runs for ad and threat blocking are restarted within five seconds if they ever exit.
+With encrypted DNS on, dnsmasq hands lookups to coWRT on `127.0.0.1:5053`, and coWRT sends them to your provider over DNS over HTTPS. It keeps one HTTP/2 connection open to the provider's own addresses, so it never needs DNS to find the DNS server, and runs many lookups over it at once. It also blocks the names Firefox and iCloud Private Relay check before using their own DNS, so their lookups stay on your network's filtering.
+
+If the provider stops answering, lookups go to the same provider's regular DNS straight away, so names keep resolving, and coWRT tries the encrypted connection again every 30 seconds. Security → Encrypted DNS shows when that's happening. The resolvers coWRT runs for ad and threat blocking are restarted within five seconds if they ever exit.
+
+The Overview checks name lookups as well as reaching the internet, so if the router is online but names don't resolve, it says so instead of showing you as connected.
+
+## What happened
+
+System → Log has a timeline next to the raw system log: when the router or coWRT started, connections switching, the line dropping and coming back, DNS trouble and recovery, and updates. It's saved in `/etc/cowrt/events.json`, so it survives restarts, and keeps the last 500 entries.
 
 ## Updates
 
