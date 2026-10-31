@@ -4,11 +4,12 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+. "$root/dev/tools.sh"
 vm="$root/dev/vm/ssh.sh"
 target=x86_64-unknown-linux-musl
 
-(cd "$root/daemon" && cargo zigbuild --release --quiet --target "$target")
-(cd "$root/web" && bun run build >/dev/null)
+(cd "$root/daemon" && build cargo zigbuild --release --quiet --target "$target")
+(cd "$root/web" && build bun run build >/dev/null)
 
 "$vm" '/etc/init.d/cowrtd stop'
 "$vm" 'cat > /usr/sbin/cowrtd' <"$root/daemon/target/$target/release/cowrtd"

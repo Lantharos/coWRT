@@ -1,25 +1,46 @@
+<script lang="ts" module>
+	export type Sample = { time: number; value: number };
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	let { levels }: { levels: number[] } = $props();
+	let { samples }: { samples: Sample[] } = $props();
 
 	const COLUMNS = 34;
 	const ROWS = 22;
-	const SAMPLE_MS = 1000;
 	const GREEN = '52, 168, 83';
 	const QUIET_BPS = 2_000_000;
+	const LAG_SECONDS = 1.25;
+	const CLOCK_JUMP_SECONDS = 5;
+	const STALE_SECONDS = 3;
+	const PEAK_EASE_SECONDS = 0.6;
 
 	let canvas: HTMLCanvasElement;
-	let field: number[] = [];
-	let lastSample = 0;
+	let offset: number | null = null;
 	let kick = () => {};
 
+	const seconds = () => performance.now() / 1000;
+
 	$effect(() => {
-		const peak = Math.max(QUIET_BPS, ...levels);
-		field = levels.map((level) => level / peak);
-		lastSample = performance.now();
+		const newest = samples.at(-1);
+		if (!newest) return;
+		const arrival = seconds() - newest.time;
+		if (offset === null || arrival < offset || arrival - offset > CLOCK_JUMP_SECONDS)
+			offset = arrival;
 		kick();
 	});
+
+	function valueAt(time: number) {
+		if (!samples.length || time < samples[0].time) return 0;
+		let index = samples.length - 1;
+		while (index > 0 && samples[index].time > time) index--;
+		const current = samples[index];
+		const next = samples[index + 1];
+		if (!next) return current.value;
+		const blend = (time - current.time) / (next.time - current.time);
+		return current.value + (next.value - current.value) * blend;
+	}
 
 	function ridge(x: number, z: number) {
 		return (
@@ -50,20 +71,26 @@
 			columnStroke = gradient;
 		}
 
+		let peak = QUIET_BPS;
+		let drawnAt = 0;
+
 		function draw(now: number) {
 			frame = 0;
-			const drift = Math.min(1, (now - lastSample) / SAMPLE_MS);
+			const newest = samples.at(-1);
+			if (!newest || offset === null) return;
+			const renderTime = now / 1000 - offset - LAG_SECONDS;
+			const drift = renderTime - Math.floor(renderTime);
+			const target = Math.max(QUIET_BPS, ...samples.slice(-ROWS - 2).map((sample) => sample.value));
+			const elapsed = drawnAt ? (now - drawnAt) / 1000 : 0;
+			peak += (target - peak) * (1 - Math.exp(-elapsed / PEAK_EASE_SECONDS));
+			drawnAt = now;
+
 			const horizon = height * 0.08;
-			const level = (age: number) => {
-				const newer = field.length - 1 - Math.floor(age);
-				const blend = age - Math.floor(age);
-				const at = (index: number) => (index >= 0 && index < field.length ? field[index] : 0);
-				return at(newer) * (1 - blend) + at(newer - 1) * blend;
-			};
 			const point = (column: number, row: number) => {
 				const age = row + drift;
 				const x = column / COLUMNS - 0.5;
-				const lift = level(Math.max(0, age)) * ridge(x, age) * Math.exp(-((x * 2.4) ** 2));
+				const level = valueAt(Math.floor(renderTime) - row) / peak;
+				const lift = level * ridge(x, age) * Math.exp(-((x * 2.4) ** 2));
 				const depth = 1 / (1 + age * 0.16);
 				return [
 					width / 2 + x * 1.6 * width * 0.9 * depth,
@@ -94,7 +121,8 @@
 			}
 			context.stroke();
 
-			if (drift < 1) kick();
+			if (renderTime < newest.time + STALE_SECONDS) kick();
+			else drawnAt = 0;
 		}
 
 		kick = () => {

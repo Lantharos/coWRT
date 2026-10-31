@@ -16,8 +16,11 @@
 	const used = $derived(bytes(snapshot?.usageToday ?? 0));
 	const down = $derived(bits(snapshot?.throughput.rx ?? 0));
 	const up = $derived(bits(snapshot?.throughput.tx ?? 0));
-	const levels = $derived(
-		live.samples.map((sample) => sample.throughput.rx + sample.throughput.tx)
+	const traffic = $derived(
+		live.samples.map((sample) => ({
+			time: sample.time,
+			value: sample.throughput.rx + sample.throughput.tx
+		}))
 	);
 </script>
 
@@ -36,5 +39,5 @@
 </div>
 
 <div class="pointer-events-none fixed inset-x-0 bottom-0 h-[42dvh] max-h-[460px]">
-	<GridFloor {levels} />
+	<GridFloor samples={traffic} />
 </div>

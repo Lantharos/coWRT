@@ -4,6 +4,7 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+. "$root/dev/tools.sh"
 openwrt=25.12.5
 version=$(grep -m1 '^version' "$root/daemon/Cargo.toml" | cut -d'"' -f2)
 arches=("$@")
@@ -25,19 +26,19 @@ sdk_image() {
 	esac
 }
 
-(cd "$root/web" && bun install --frozen-lockfile --silent && bun run build >/dev/null)
+(cd "$root/web" && build bun install --frozen-lockfile --silent && build bun run build >/dev/null)
 mkdir -p "$root/dist"
 
 for arch in "${arches[@]}"; do
 	target=$(rust_target "$arch")
-	(cd "$root/daemon" && cargo zigbuild --release --quiet --target "$target")
+	(cd "$root/daemon" && build cargo zigbuild --release --quiet --target "$target")
 
-	stage=$(mktemp -d)
+	stage=$(mktemp -d -p "$root/dist")
 	trap 'rm -rf "$stage"' EXIT
 	cp "$root/daemon/target/$target/release/cowrtd" "$stage/"
 	cp -r "$root/web/build" "$stage/www"
 
-	podman run --rm --userns=keep-id:uid=1000,gid=1000 \
+	on_host podman run --rm --userns=keep-id:uid=1000,gid=1000 \
 		-v "$root/packaging/openwrt/cowrt:/builder/package/cowrt:ro,z" \
 		-v "$stage:/stage:ro,z" \
 		-v "$root/dist:/out:z" \

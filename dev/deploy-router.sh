@@ -4,13 +4,14 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+. "$root/dev/tools.sh"
 host=${1:?Usage: dev/deploy-router.sh user@router [aarch64|x86_64]}
 target=$([ "${2:-aarch64}" = x86_64 ] && echo x86_64-unknown-linux-musl || echo aarch64-unknown-linux-musl)
 www=$(mktemp)
 trap 'rm -f "$www"' EXIT
 
-(cd "$root/daemon" && cargo zigbuild --release --quiet --target "$target")
-(cd "$root/web" && bun run build >/dev/null)
+(cd "$root/daemon" && build cargo zigbuild --release --quiet --target "$target")
+(cd "$root/web" && build bun run build >/dev/null)
 tar -C "$root/web/build" -czf "$www" .
 
 scp -O -q "$root/daemon/target/$target/release/cowrtd" "$host:/tmp/cowrtd.new"

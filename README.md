@@ -70,7 +70,7 @@ Pushing a tag like `v0.2.0` that matches the version in `daemon/Cargo.toml` buil
 
 ## Development
 
-You'll need Rust with [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild), Bun, and QEMU with KVM.
+You'll need Rust with [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild), Bun, and QEMU with KVM. If Rust and Bun live in a toolbox, set `COWRT_TOOLBOX` to its name and the scripts run them there, and run Podman on the host when they're called from inside a container.
 
 Start the development router. The first run downloads and verifies the OpenWrt image:
 
