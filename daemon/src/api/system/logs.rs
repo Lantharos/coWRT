@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 
 use crate::http::ApiResult;
 use crate::state::AppState;
+use crate::system::events::{self as system_events, Event};
 
 #[derive(Deserialize)]
 pub struct LogQuery {
@@ -30,6 +31,10 @@ fn level(priority: u64) -> &'static str {
 		5 | 6 => "info",
 		_ => "debug",
 	}
+}
+
+pub async fn events() -> Json<Vec<Event>> {
+	Json(system_events::recent(200))
 }
 
 pub async fn logs(State(state): State<AppState>, Query(query): Query<LogQuery>) -> ApiResult<Vec<Entry>> {

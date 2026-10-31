@@ -9,6 +9,7 @@ use tokio::process::Command;
 use crate::http::ApiError;
 use crate::platform::config::uci;
 use crate::state::AppState;
+use crate::system::events::{self, Tone};
 
 #[derive(Deserialize)]
 pub struct Settings {
@@ -64,6 +65,8 @@ pub async fn password(State(state): State<AppState>, Json(input): Json<Password>
 }
 
 pub async fn reboot(State(state): State<AppState>) -> Result<(), ApiError> {
+	events::record(Tone::Info, "Restarted from coWRT");
+	events::save().await;
 	state.monitor.save().await;
 	tokio::spawn(async move {
 		tokio::time::sleep(Duration::from_secs(1)).await;

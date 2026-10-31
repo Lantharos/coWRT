@@ -6,7 +6,7 @@ pub mod setup;
 mod update;
 
 pub use backup::{backup, firmware, restore};
-pub use logs::logs;
+pub use logs::{events, logs};
 pub use openwrt::{check_openwrt, upgrade_openwrt};
 pub use settings::{password, reboot, update_settings};
 pub use update::{check_update, install_update, update_automatic};

@@ -2,9 +2,12 @@ use std::collections::VecDeque;
 
 use serde::{Deserialize, Serialize};
 
+use super::autorate::Learned;
+
 pub const BUCKET_SECS: u64 = 300;
 const BUCKETS: usize = 7 * 24 * 3600 / BUCKET_SECS as usize;
 const FILE: &str = "/etc/cowrt/line.json";
+const KEEP_SECS: u64 = 7 * 24 * 3600;
 
 #[derive(Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,28 +56,40 @@ impl Bucket {
 	}
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub struct Outage {
+	pub start: u64,
+	pub seconds: u64,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+struct Saved {
+	points: VecDeque<Point>,
+	outages: VecDeque<Outage>,
+	learned: Option<Learned>,
+}
+
 #[derive(Default)]
 pub struct History {
-	points: VecDeque<Point>,
+	saved: Saved,
 	current: Bucket,
 }
 
 impl History {
 	pub async fn load() -> Self {
-		let points: Vec<Point> = tokio::fs::read(FILE)
+		let saved = tokio::fs::read(FILE)
 			.await
 			.ok()
 			.and_then(|bytes| serde_json::from_slice(&bytes).ok())
 			.unwrap_or_default();
 		Self {
-			points: points.into(),
+			saved,
 			current: Bucket::default(),
 		}
 	}
 
 	pub async fn save(&self) {
-		let points: Vec<&Point> = self.points.iter().collect();
-		if let Ok(bytes) = serde_json::to_vec(&points) {
+		if let Ok(bytes) = serde_json::to_vec(&self.saved) {
 			let temporary = format!("{FILE}.new");
 			if tokio::fs::write(&temporary, bytes).await.is_ok() {
 				let _ = tokio::fs::rename(&temporary, FILE).await;
@@ -86,10 +101,10 @@ impl History {
 		let index = now / BUCKET_SECS;
 		if self.current.index != index {
 			if let Some(point) = self.current.point() {
-				if self.points.len() == BUCKETS {
-					self.points.pop_front();
+				if self.saved.points.len() == BUCKETS {
+					self.saved.points.pop_front();
 				}
-				self.points.push_back(point);
+				self.saved.points.push_back(point);
 			}
 			self.current = Bucket {
 				index,
@@ -120,6 +135,29 @@ impl History {
 	}
 
 	pub fn points(&self) -> Vec<Point> {
-		self.points.iter().copied().chain(self.current.clone().point()).collect()
+		self.saved
+			.points
+			.iter()
+			.copied()
+			.chain(self.current.clone().point())
+			.collect()
+	}
+
+	pub fn outage(&mut self, outage: Outage) {
+		let cutoff = outage.start.saturating_sub(KEEP_SECS);
+		self.saved.outages.retain(|kept| kept.start >= cutoff);
+		self.saved.outages.push_back(outage);
+	}
+
+	pub fn outages(&self) -> Vec<Outage> {
+		self.saved.outages.iter().copied().collect()
+	}
+
+	pub fn learned(&self) -> Option<Learned> {
+		self.saved.learned
+	}
+
+	pub fn learn(&mut self, learned: Learned) {
+		self.saved.learned = Some(learned);
 	}
 }

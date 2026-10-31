@@ -19,6 +19,22 @@
 	const losses = $derived(points.map((point) => point.loss));
 	const downloads = $derived(points.map((point) => point.down));
 	const worst = $derived(worstHours(line?.points ?? []));
+	const outages = $derived.by(() => {
+		const since = Date.now() / 1000 - (range === 'day' ? 86400 : 7 * 86400);
+		return (line?.outages ?? []).filter((outage) => outage.start >= since);
+	});
+	const spoken = (seconds: number) =>
+		seconds < 60
+			? `${seconds} s`
+			: seconds < 3600
+				? `${Math.round(seconds / 60)} min`
+				: `${Math.floor(seconds / 3600)} h ${Math.round((seconds % 3600) / 60)} min`;
+	const when = (seconds: number) =>
+		new Date(seconds * 1000).toLocaleString([], {
+			weekday: 'short',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
 
 	const ms = (value: number) => `${Math.round(value)} ms`;
 	const hour = (value: number) => `${String(value).padStart(2, '0')}:00`;
@@ -99,6 +115,29 @@
 					</dd>
 				</div>
 			</dl>
+		</section>
+
+		<section class="flex flex-col gap-1.5">
+			<h3 class="text-[15px]">Dropouts</h3>
+			{#if outages.length}
+				<p class="text-[14px] text-muted">
+					{outages.length === 1 ? 'Once' : `${outages.length} times`} in the last {range === 'day'
+						? '24 hours'
+						: '7 days'}, {spoken(outages.reduce((sum, outage) => sum + outage.seconds, 0))} in total.
+				</p>
+				<div class="flex flex-col pt-1">
+					{#each outages.toReversed() as outage (outage.start)}
+						<div class="flex justify-between py-1 text-[14px]">
+							<span>{when(outage.start)}</span>
+							<span class="text-muted tabular-nums">{spoken(outage.seconds)}</span>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<p class="text-[14px] text-muted">
+					The line hasn't dropped in the last {range === 'day' ? '24 hours' : '7 days'}.
+				</p>
+			{/if}
 		</section>
 
 		<section class="flex flex-col gap-1.5">

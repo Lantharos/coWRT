@@ -20,7 +20,7 @@
 	import BackupSheet from '#lib/components/system/BackupSheet.svelte';
 	import FirmwareSheet from '#lib/components/system/FirmwareSheet.svelte';
 	import Health, { type Metric } from '#lib/components/system/Health.svelte';
-	import Log from '#lib/components/system/Log.svelte';
+	import LogView from '#lib/components/system/log/LogView.svelte';
 	import PasswordSheet from '#lib/components/system/PasswordSheet.svelte';
 	import RestartSheet from '#lib/components/system/RestartSheet.svelte';
 	import RouterSheet from '#lib/components/system/RouterSheet.svelte';
@@ -129,7 +129,7 @@
 	<Health metric={panel === 'memory' ? 'memory' : 'cpu'} />
 </Sheet>
 <Sheet open={panel === 'log'} title="Log" onclose={close}>
-	<Log />
+	<LogView />
 </Sheet>
 <RouterSheet
 	system={system.data}

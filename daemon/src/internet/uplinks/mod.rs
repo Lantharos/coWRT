@@ -24,6 +24,7 @@ use crate::platform::config::uci;
 use crate::platform::netlink::conntrack;
 use crate::platform::ubus::Ubus;
 use crate::state::{AppState, unix_now};
+use crate::system::events::{self, Tone};
 
 const EVERY: Duration = Duration::from_secs(3);
 
@@ -180,6 +181,14 @@ fn interface<'a>(dump: &'a [Value], name: &str) -> Option<&'a Value> {
 		.find(|status| status.get("interface").and_then(Value::as_str) == Some(name))
 }
 
+fn announce_switch(uplinks: &[Uplink], active: Option<&str>) {
+	match active.and_then(|id| uplinks.iter().find(|u| u.id == id)) {
+		Some(uplink) if uplink.id == PRIMARY => events::record(Tone::Good, format!("Back on the {}", uplink.name.to_lowercase())),
+		Some(uplink) => events::record(Tone::Warn, format!("Switched to {}", uplink.name.to_lowercase())),
+		None => events::record(Tone::Bad, "No connection is working"),
+	}
+}
+
 async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steering: &mut Steering) {
 	let (Ok(uplinks), Ok(settings)) = (configured(&state.ubus).await, settings(&state.ubus).await) else {
 		return;
@@ -224,7 +233,9 @@ async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steerin
 	let mut status = Vec::with_capacity(uplinks.len());
 	let mut routes = HashMap::new();
 	for ((uplink, live), probe) in uplinks.iter().zip(lives).zip(probes) {
-		let tracker = trackers.entry(uplink.id.clone()).or_default();
+		let tracker = trackers
+			.entry(uplink.id.clone())
+			.or_insert_with(|| Tracker::assume_online(now));
 		match probe {
 			Some(result) => tracker.record(result, now),
 			None => tracker.lost(now),
@@ -275,7 +286,7 @@ async fn tick(state: &AppState, trackers: &mut HashMap<String, Tracker>, steerin
 		};
 		steer_ipv6(plan, steering).await;
 		if previous.is_some() && previous != active {
-			eprintln!("cowrtd: switched internet to {}", active.as_deref().unwrap_or("nothing"));
+			announce_switch(&status, active.as_deref());
 			forget_lan_flows(&state.ubus).await;
 		}
 	} else if steering.ipv4 {

@@ -102,4 +102,5 @@ export interface LineView {
 	};
 	bucketSecs: number;
 	points: LinePoint[];
+	outages: { start: number; seconds: number }[];
 }

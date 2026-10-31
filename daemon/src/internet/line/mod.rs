@@ -11,12 +11,13 @@ use tokio::time::{MissedTickBehavior, interval};
 use autorate::Autorate;
 use echoes::Echoes;
 pub use history::Point;
-use history::{BUCKET_SECS, History};
+use history::{BUCKET_SECS, History, Outage};
 
 use crate::internet::qos::{self, Mode, Settings};
 use crate::monitor::wan::{MAIN, Wan};
 use crate::platform::icmp::Pinger;
 use crate::state::{AppState, unix_now};
+use crate::system::events::{self, Tone};
 
 const CONTROL: Duration = Duration::from_millis(250);
 const QUIET_PING: Duration = Duration::from_secs(1);
@@ -27,6 +28,7 @@ const SAVE: Duration = Duration::from_secs(3600);
 const RETRY: Duration = Duration::from_secs(15);
 const SMOOTHING: f64 = 0.2;
 const MEANINGFUL_CHANGE: f64 = 0.02;
+const OUTAGE_AFTER: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Copy, Serialize)]
 pub struct Limits {
@@ -49,6 +51,7 @@ pub struct View {
 	pub now: Now,
 	pub bucket_secs: u64,
 	pub points: Vec<Point>,
+	pub outages: Vec<Outage>,
 }
 
 #[derive(Default)]
@@ -60,10 +63,12 @@ pub struct Line {
 impl Line {
 	pub async fn view(&self) -> View {
 		let now = *self.now.lock().expect("line lock poisoned");
+		let history = self.history.lock().await;
 		View {
 			now,
 			bucket_secs: BUCKET_SECS,
-			points: self.history.lock().await.points(),
+			points: history.points(),
+			outages: history.outages(),
 		}
 	}
 
@@ -88,8 +93,16 @@ async fn counters(device: &str) -> Option<(u64, u64)> {
 	Some((read("rx_bytes").await?, read("tx_bytes").await?))
 }
 
-fn controller(settings: &Settings) -> Option<Autorate> {
-	(settings.shaping() && settings.mode == Mode::Adaptive).then(|| Autorate::new(settings.download, settings.upload))
+fn controller(settings: &Settings, learned: Option<autorate::Learned>) -> Option<Autorate> {
+	(settings.shaping() && settings.mode == Mode::Adaptive).then(|| Autorate::new(settings.download, settings.upload, learned))
+}
+
+fn spoken(seconds: u64) -> String {
+	match seconds {
+		0..60 => format!("{seconds} s"),
+		60..3600 => format!("{} min", seconds / 60),
+		_ => format!("{} h {} min", seconds / 3600, seconds % 3600 / 60),
+	}
 }
 
 fn worth_applying(next: (u32, u32), applied: Option<(u32, u32)>) -> bool {
@@ -114,7 +127,7 @@ impl Traffic {
 
 async fn watch(state: &AppState, device: &str, pinger: &Pinger) {
 	let settings = qos::load(&state.ubus).await.unwrap_or_default();
-	let mut autorate = controller(&settings);
+	let mut autorate = controller(&settings, state.line.history.lock().await.learned());
 	let mut echoes = Echoes::default();
 	let mut ping = interval(if autorate.is_some() { ADAPTIVE_PING } else { QUIET_PING });
 	let mut control = interval(CONTROL);
@@ -126,6 +139,8 @@ async fn watch(state: &AppState, device: &str, pinger: &Pinger) {
 		at: Instant::now(),
 	};
 	let mut latency: Option<f64> = None;
+	let mut last_reply = Instant::now();
+	let mut outage: Option<u64> = None;
 	let mut applied: Option<(u32, u32)> = None;
 	let (mut applied_at, mut checked_at, mut saved_at) = (Instant::now(), Instant::now(), Instant::now());
 
@@ -138,13 +153,26 @@ async fn watch(state: &AppState, device: &str, pinger: &Pinger) {
 			reply = pinger.receive() => {
 				let Ok(sequence) = reply else { return };
 				if let Some(reply) = echoes.answered(sequence) {
+					let now = unix_now();
 					latency = Some(latency.map_or(reply.rtt_ms, |l| l + (reply.rtt_ms - l) * SMOOTHING));
-					state.line.history.lock().await.reply(unix_now(), reply.rtt_ms);
+					last_reply = Instant::now();
+					let mut history = state.line.history.lock().await;
+					history.reply(now, reply.rtt_ms);
+					if let Some(start) = outage.take() {
+						let seconds = now.saturating_sub(start);
+						history.outage(Outage { start, seconds });
+						events::record(Tone::Good, format!("The main line is answering again after {}", spoken(seconds)));
+					}
 				}
 			}
 			_ = control.tick() => {
 				let now = unix_now();
 				let lost = echoes.expire();
+				let silent = last_reply.elapsed();
+				if outage.is_none() && silent >= OUTAGE_AFTER {
+					outage = Some(now.saturating_sub(silent.as_secs()));
+					events::record(Tone::Bad, "The main line stopped answering");
+				}
 				let Some(current) = counters(device).await else { return };
 				let (down, up, seconds) = traffic.advance(current);
 				let kbit = |bytes: u64| bytes as f64 * 8.0 / 1000.0 / seconds.max(0.001);
@@ -162,6 +190,9 @@ async fn watch(state: &AppState, device: &str, pinger: &Pinger) {
 						history.lost(now, lost);
 					}
 					history.traffic(now, down, up, seconds, limits);
+					if let Some(autorate) = &autorate {
+						history.learn(autorate.learned());
+					}
 				}
 				state.line.publish(Now {
 					latency_ms: latency.map(|l| l as f32),

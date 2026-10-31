@@ -1,4 +1,5 @@
 pub mod config;
+pub mod dns;
 pub mod ethtool;
 pub mod icmp;
 pub mod netlink;

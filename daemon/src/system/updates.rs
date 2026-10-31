@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use crate::platform::config::uci;
 use crate::platform::ubus::{self, Ubus};
 use crate::state::AppState;
+use crate::system::events::{self, Tone};
 use crate::system::{release, upgrade};
 
 const FIRST_CHECK: Duration = Duration::from_secs(120);
@@ -87,8 +88,11 @@ async fn install_overnight(state: &AppState, release: &release::Release) {
 		return;
 	}
 	match release::install(release).await {
-		Ok(()) => eprintln!("cowrtd: installing coWRT {} overnight", release.version()),
-		Err(err) => eprintln!("cowrtd: couldn't install coWRT {} overnight: {err}", release.version()),
+		Ok(()) => events::record(Tone::Info, format!("Installing coWRT {} overnight", release.version())),
+		Err(err) => events::record(
+			Tone::Bad,
+			format!("Couldn't install coWRT {} overnight: {err}", release.version()),
+		),
 	}
 }
 

@@ -54,6 +54,7 @@ async fn main() {
 	if let Err(err) = system::setup::skip_if_configured(&state).await {
 		eprintln!("cowrtd: could not check first-time setup: {err}");
 	}
+	system::events::spawn(state.ubus.clone());
 	monitor::spawn(state.clone());
 	access::ddns::spawn(state.clone());
 	access::forwards::reach::spawn(state.clone());
@@ -78,6 +79,7 @@ async fn main() {
 	state.monitor.save().await;
 	state.activity.save().await;
 	state.line.save().await;
+	system::events::save().await;
 }
 
 async fn shutdown() {

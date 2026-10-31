@@ -19,7 +19,13 @@ export interface Snapshot {
 	memory: { used: number; total: number };
 	wan: Wan;
 	throughput: { rx: number; tx: number };
-	internet: { checked: boolean; online: boolean; latencyMs: number | null; online6: boolean };
+	internet: {
+		checked: boolean;
+		online: boolean;
+		latencyMs: number | null;
+		online6: boolean;
+		resolving: boolean;
+	};
 	usageToday: number;
 	uplink: Uplink | null;
 	updates: AvailableUpdates;
@@ -78,6 +84,12 @@ export interface OpenWrtInfo {
 	latest: string | null;
 	available: boolean;
 	progress: UpgradeProgress;
+}
+
+export interface TimelineEvent {
+	time: number;
+	tone: 'info' | 'good' | 'warn' | 'bad';
+	message: string;
 }
 
 export interface LogEntry {

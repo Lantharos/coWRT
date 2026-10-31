@@ -27,7 +27,6 @@ pub async fn probe(device: &str) -> Option<u32> {
 	None
 }
 
-#[derive(Default)]
 pub struct Tracker {
 	pub online: bool,
 	pub since: u64,
@@ -37,6 +36,16 @@ pub struct Tracker {
 }
 
 impl Tracker {
+	pub fn assume_online(now: u64) -> Self {
+		Self {
+			online: true,
+			since: now,
+			latency_ms: None,
+			failures: 0,
+			successes: 0,
+		}
+	}
+
 	pub fn record(&mut self, result: Option<u32>, now: u64) {
 		self.latency_ms = result;
 		match result {

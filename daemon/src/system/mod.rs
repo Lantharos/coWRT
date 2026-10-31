@@ -1,4 +1,5 @@
 pub mod account;
+pub mod events;
 pub mod outbound;
 pub mod packages;
 pub mod release;

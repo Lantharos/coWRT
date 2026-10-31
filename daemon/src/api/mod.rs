@@ -24,6 +24,7 @@ pub fn routes() -> Router<AppState> {
 		.route("/system/password", put(system::password))
 		.route("/system/reboot", post(system::reboot))
 		.route("/system/logs", get(system::logs))
+		.route("/system/events", get(system::events))
 		.route("/system/backup", get(system::backup))
 		.route("/system/update", get(system::check_update).post(system::install_update))
 		.route("/system/update/automatic", put(system::update_automatic))
